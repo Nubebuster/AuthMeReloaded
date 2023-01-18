@@ -1,6 +1,7 @@
 package fr.xephi.authme.data.limbo;
 
 import fr.xephi.authme.ConsoleLogger;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.permission.PermissionsManager;
 import fr.xephi.authme.settings.Settings;
 import fr.xephi.authme.settings.properties.LimboSettings;
@@ -11,13 +12,17 @@ import org.bukkit.entity.Player;
 import javax.inject.Inject;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static fr.xephi.authme.util.Utils.isCollectionEmpty;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Helper class for the LimboService.
  */
 class LimboServiceHelper {
+
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(LimboServiceHelper.class);
 
     @Inject
     private PermissionsManager permissionsManager;
@@ -28,9 +33,9 @@ class LimboServiceHelper {
     /**
      * Creates a LimboPlayer with the given player's details.
      *
-     * @param player the player to process
+     * @param player       the player to process
      * @param isRegistered whether the player is registered
-     * @param location the player location
+     * @param location     the player location
      * @return limbo player with the player's data
      */
     LimboPlayer createLimboPlayer(Player player, boolean isRegistered, Location location) {
@@ -39,10 +44,14 @@ class LimboServiceHelper {
         boolean flyEnabled = player.getAllowFlight();
         float walkSpeed = player.getWalkSpeed();
         float flySpeed = player.getFlySpeed();
-        Collection<String> playerGroups = permissionsManager.hasGroupSupport()
+        Collection<UserGroup> playerGroups = permissionsManager.hasGroupSupport()
             ? permissionsManager.getGroups(player) : Collections.emptyList();
-        ConsoleLogger.debug("Player `{0}` has groups `{1}`", player.getName(), String.join(", ", playerGroups));
 
+        List<String> groupNames = playerGroups.stream()
+            .map(UserGroup::getGroupName)
+            .collect(toList());
+
+        logger.debug("Player `{0}` has groups `{1}`", player.getName(), String.join(", ", groupNames));
         return new LimboPlayer(location, isOperator, playerGroups, flyEnabled, walkSpeed, flySpeed);
     }
 
@@ -88,7 +97,7 @@ class LimboServiceHelper {
         boolean canFly = newLimbo.isCanFly() || oldLimbo.isCanFly();
         float flySpeed = Math.max(newLimbo.getFlySpeed(), oldLimbo.getFlySpeed());
         float walkSpeed = Math.max(newLimbo.getWalkSpeed(), oldLimbo.getWalkSpeed());
-        Collection<String> groups = getLimboGroups(oldLimbo.getGroups(), newLimbo.getGroups());
+        Collection<UserGroup> groups = getLimboGroups(oldLimbo.getGroups(), newLimbo.getGroups());
         Location location = firstNotNull(oldLimbo.getLocation(), newLimbo.getLocation());
 
         return new LimboPlayer(location, isOperator, groups, canFly, walkSpeed, flySpeed);
@@ -98,9 +107,9 @@ class LimboServiceHelper {
         return first == null ? second : first;
     }
 
-    private static Collection<String> getLimboGroups(Collection<String> oldLimboGroups,
-                                                     Collection<String> newLimboGroups) {
-        ConsoleLogger.debug("Limbo merge: new and old groups are `{0}` and `{1}`", newLimboGroups, oldLimboGroups);
+    private Collection<UserGroup> getLimboGroups(Collection<UserGroup> oldLimboGroups,
+                                                 Collection<UserGroup> newLimboGroups) {
+        logger.debug("Limbo merge: new and old groups are `{0}` and `{1}`", newLimboGroups, oldLimboGroups);
         return isCollectionEmpty(oldLimboGroups) ? newLimboGroups : oldLimboGroups;
     }
 }

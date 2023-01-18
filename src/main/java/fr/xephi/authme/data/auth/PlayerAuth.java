@@ -3,8 +3,10 @@ package fr.xephi.authme.data.auth;
 import fr.xephi.authme.security.crypts.HashedPassword;
 import org.bukkit.Location;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -12,6 +14,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 /**
  * AuthMe player data.
  */
+@SuppressWarnings("checkstyle:FinalClass") // Justification: class is mocked in multiple tests
 public class PlayerAuth {
 
     /** Default email used in the database if the email column is defined to be NOT NULL. */
@@ -40,6 +43,7 @@ public class PlayerAuth {
     private String world;
     private float yaw;
     private float pitch;
+    private UUID uuid;
 
     /**
      * Hidden constructor.
@@ -51,7 +55,7 @@ public class PlayerAuth {
 
 
     public void setNickname(String nickname) {
-        this.nickname = nickname.toLowerCase();
+        this.nickname = nickname.toLowerCase(Locale.ROOT);
     }
 
     public String getNickname() {
@@ -169,6 +173,14 @@ public class PlayerAuth {
         this.totpKey = totpKey;
     }
 
+    public UUID getUuid() {
+        return uuid;
+    }
+
+    public void setUuid(UUID uuid) {
+        this.uuid = uuid;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof PlayerAuth)) {
@@ -193,7 +205,8 @@ public class PlayerAuth {
             + " ! LastLogin : " + lastLogin
             + " ! LastPosition : " + x + "," + y + "," + z + "," + world
             + " ! Email : " + email
-            + " ! Password : {" + password.getHash() + ", " + password.getSalt() + "}";
+            + " ! Password : {" + password.getHash() + ", " + password.getSalt() + "}"
+            + " ! UUID : " + uuid;
     }
 
     public static Builder builder() {
@@ -218,6 +231,7 @@ public class PlayerAuth {
         private String world;
         private float yaw;
         private float pitch;
+        private UUID uuid;
 
         /**
          * Creates a PlayerAuth object.
@@ -226,7 +240,7 @@ public class PlayerAuth {
          */
         public PlayerAuth build() {
             PlayerAuth auth = new PlayerAuth();
-            auth.nickname = checkNotNull(name).toLowerCase();
+            auth.nickname = checkNotNull(name).toLowerCase(Locale.ROOT);
             auth.realName = Optional.ofNullable(realName).orElse("Player");
             auth.password = Optional.ofNullable(password).orElse(new HashedPassword(""));
             auth.totpKey = totpKey;
@@ -243,6 +257,7 @@ public class PlayerAuth {
             auth.world = Optional.ofNullable(world).orElse("world");
             auth.yaw = yaw;
             auth.pitch = pitch;
+            auth.uuid = uuid;
             return auth;
         }
 
@@ -347,6 +362,11 @@ public class PlayerAuth {
 
         public Builder registrationDate(long date) {
             this.registrationDate = date;
+            return this;
+        }
+
+        public Builder uuid(UUID uuid) {
+            this.uuid = uuid;
             return this;
         }
     }

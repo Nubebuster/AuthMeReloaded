@@ -21,6 +21,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 /**
  * The current API of AuthMe.
@@ -133,6 +135,20 @@ public class AuthMeApi {
     }
 
     /**
+     * Returns the AuthMe info of the given player's name, or empty optional if the player doesn't exist.
+     *
+     * @param playerName The player name to look up
+     * @return AuthMe player info, or empty optional if the player doesn't exist
+     */
+    public Optional<AuthMePlayer> getPlayerInfo(String playerName) {
+        PlayerAuth auth = playerCache.getAuth(playerName);
+        if (auth == null) {
+            auth = dataSource.getAuth(playerName);
+        }
+        return AuthMePlayerImpl.fromPlayerAuth(auth);
+    }
+
+    /**
      * Get the last ip address of a player.
      *
      * @param playerName The name of the player to process
@@ -163,7 +179,6 @@ public class AuthMeApi {
      * Get the last (AuthMe) login date of a player.
      *
      * @param playerName The name of the player to process
-     *
      * @return The date of the last login, or null if the player doesn't exist or has never logged in
      * @deprecated Use Java 8's Instant method {@link #getLastLoginTime(String)}
      */
@@ -203,7 +218,7 @@ public class AuthMeApi {
      * @return true if player is registered, false otherwise
      */
     public boolean isRegistered(String playerName) {
-        String player = playerName.toLowerCase();
+        String player = playerName.toLowerCase(Locale.ROOT);
         return dataSource.isAuthAvailable(player);
     }
 
@@ -227,7 +242,7 @@ public class AuthMeApi {
      * @return true if the player was registered successfully
      */
     public boolean registerPlayer(String playerName, String password) {
-        String name = playerName.toLowerCase();
+        String name = playerName.toLowerCase(Locale.ROOT);
         if (isRegistered(name)) {
             return false;
         }

@@ -29,7 +29,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Test for {@link BukkitService}.
@@ -127,7 +127,7 @@ public class BukkitServiceTest {
 
         // then
         verify(spy).scheduleSyncDelayedTask(task);
-        verifyZeroInteractions(task);
+        verifyNoInteractions(task);
     }
 
     @Test
@@ -188,7 +188,7 @@ public class BukkitServiceTest {
         spy.runTaskOptionallyAsync(task);
 
         // then
-        verifyZeroInteractions(task);
+        verifyNoInteractions(task);
         verify(spy).runTaskAsynchronously(task);
     }
 
@@ -226,18 +226,21 @@ public class BukkitServiceTest {
     @Test
     public void shouldRunTaskTimerAsynchronously() {
         // given
-        Runnable task = () -> {/* */};
+        BukkitRunnable task = new BukkitRunnable() {
+            @Override
+            public void run() {
+            }
+        };
         long delay = 20L;
         long period = 4000L;
         BukkitTask bukkitTask = mock(BukkitTask.class);
-        given(scheduler.runTaskTimerAsynchronously(authMe, task, delay, period)).willReturn(bukkitTask);
+        given(task.runTaskTimerAsynchronously(authMe, delay, period)).willReturn(bukkitTask);
 
         // when
         BukkitTask resultingTask = bukkitService.runTaskTimerAsynchronously(task, delay, period);
 
         // then
         assertThat(resultingTask, equalTo(bukkitTask));
-        verify(scheduler).runTaskTimerAsynchronously(authMe, task, delay, period);
     }
 
     @Test

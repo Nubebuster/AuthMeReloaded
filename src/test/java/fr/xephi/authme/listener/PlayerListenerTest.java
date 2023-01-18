@@ -1,6 +1,5 @@
 package fr.xephi.authme.listener;
 
-import fr.xephi.authme.TestHelper;
 import fr.xephi.authme.data.QuickCommandsProtectionManager;
 import fr.xephi.authme.data.auth.PlayerAuth;
 import fr.xephi.authme.datasource.DataSource;
@@ -29,6 +28,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -38,12 +38,14 @@ import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerPickupItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerShearEntityEvent;
 import org.bukkit.inventory.InventoryView;
 import org.junit.Test;
@@ -58,11 +60,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.UUID;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static fr.xephi.authme.listener.EventCancelVerifier.withServiceMock;
 import static fr.xephi.authme.service.BukkitServiceTestHelper.setBukkitServiceToScheduleSyncDelayedTaskWithDelay;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -71,7 +74,6 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doThrow;
@@ -81,8 +83,8 @@ import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 /**
  * Test for {@link PlayerListener}.
@@ -138,7 +140,7 @@ public class PlayerListenerTest {
 
         // then
         assertThat(event.isCancelled(), equalTo(true));
-        verifyZeroInteractions(player, management, antiBotService);
+        verifyNoInteractions(player, management, antiBotService);
     }
 
     @Test
@@ -174,7 +176,7 @@ public class PlayerListenerTest {
         // then
         assertThat(event.isCancelled(), equalTo(false));
         verify(antiBotService).wasPlayerKicked(name);
-        verifyZeroInteractions(management);
+        verifyNoInteractions(management);
     }
 
     @Test
@@ -188,7 +190,8 @@ public class PlayerListenerTest {
             .check(listener::onPlayerConsumeItem, PlayerItemConsumeEvent.class)
             .check(listener::onPlayerInteract, PlayerInteractEvent.class)
             .check(listener::onPlayerPickupItem, PlayerPickupItemEvent.class)
-            .check(listener::onPlayerInteractEntity, PlayerInteractEntityEvent.class);
+            .check(listener::onPlayerInteractEntity, PlayerInteractEntityEvent.class)
+            .check(listener::onPlayerHeldItem, PlayerItemHeldEvent.class);
     }
 
     @Test
@@ -202,7 +205,7 @@ public class PlayerListenerTest {
 
         // then
         verify(event, only()).getMessage();
-        verifyZeroInteractions(listenerService, messages);
+        verifyNoInteractions(listenerService, messages);
     }
 
     @Test
@@ -217,7 +220,7 @@ public class PlayerListenerTest {
 
         // then
         verify(event, only()).getMessage();
-        verifyZeroInteractions(listenerService, messages);
+        verifyNoInteractions(listenerService, messages);
     }
 
     @Test
@@ -238,7 +241,7 @@ public class PlayerListenerTest {
         verify(event).getMessage();
         verifyNoMoreInteractions(event);
         verify(listenerService).shouldCancelEvent(player);
-        verifyZeroInteractions(messages);
+        verifyNoInteractions(messages);
     }
 
     @Test
@@ -287,7 +290,7 @@ public class PlayerListenerTest {
         listener.onPlayerChat(event);
 
         // then
-        verifyZeroInteractions(event, listenerService, messages);
+        verifyNoInteractions(event, listenerService, messages);
     }
 
     @Test
@@ -321,7 +324,7 @@ public class PlayerListenerTest {
 
         // then
         verify(listenerService).shouldCancelEvent(event.getPlayer());
-        verifyZeroInteractions(event, messages);
+        verifyNoInteractions(event, messages);
     }
 
     @Test
@@ -342,7 +345,7 @@ public class PlayerListenerTest {
         // message sender + 3 recipients = 4
         verify(listenerService, times(4)).shouldCancelEvent(any(Player.class));
         verify(event, never()).setCancelled(anyBoolean());
-        assertThat(event.getRecipients(), contains(recipients.get(1), recipients.get(2)));
+        assertThat(event.getRecipients(), containsInAnyOrder(recipients.get(1), recipients.get(2)));
     }
 
     @Test
@@ -397,7 +400,7 @@ public class PlayerListenerTest {
         listener.onPlayerMove(event);
 
         // then
-        verifyZeroInteractions(event);
+        verifyNoInteractions(event);
     }
 
     @Test
@@ -537,6 +540,98 @@ public class PlayerListenerTest {
     }
 
     @Test
+    public void shouldIgnorePlayerRespawnWithNoTeleport() {
+        // given
+        Player player = mock(Player.class);
+        Location respawnLocation = mock(Location.class);
+        PlayerRespawnEvent event = spy(new PlayerRespawnEvent(player, respawnLocation, false));
+        given(settings.getProperty(RestrictionSettings.NO_TELEPORT)).willReturn(true);
+
+        // when
+        listener.onPlayerRespawn(event);
+
+        // then
+        verifyNoInteractions(listenerService);
+        verify(event, never()).setRespawnLocation(any());
+    }
+
+    @Test
+    public void shouldIgnorePlayerRespawn() {
+        // given
+        Player player = mock(Player.class);
+        Location respawnLocation = mock(Location.class);
+        PlayerRespawnEvent event = spy(new PlayerRespawnEvent(player, respawnLocation, false));
+        given(settings.getProperty(RestrictionSettings.NO_TELEPORT)).willReturn(false);
+        given(listenerService.shouldCancelEvent(event)).willReturn(false);
+
+        // when
+        listener.onPlayerRespawn(event);
+
+        // then
+        verifyNoInteractions(spawnLoader);
+        verify(event, never()).setRespawnLocation(any());
+    }
+
+    @Test
+    public void shouldHandlePlayerRespawn() {
+        // given
+        Player player = mock(Player.class);
+        Location originalLocation = mock(Location.class);
+        Location newLocation = mock(Location.class);
+        World world = mock(World.class);
+        given(newLocation.getWorld()).willReturn(world);
+        PlayerRespawnEvent event = spy(new PlayerRespawnEvent(player, originalLocation, false));
+        given(settings.getProperty(RestrictionSettings.NO_TELEPORT)).willReturn(false);
+        given(listenerService.shouldCancelEvent(event)).willReturn(true);
+        given(spawnLoader.getSpawnLocation(player)).willReturn(newLocation);
+
+        // when
+        listener.onPlayerRespawn(event);
+
+        // then
+        verify(spawnLoader).getSpawnLocation(player);
+        verify(event).setRespawnLocation(newLocation);
+    }
+
+    @Test
+    public void shouldIgnorePlayerRespawnUnloadedWorld() {
+        // given
+        Player player = mock(Player.class);
+        Location originalLocation = mock(Location.class);
+        Location newLocation = mock(Location.class);
+        given(newLocation.getWorld()).willReturn(null);
+        PlayerRespawnEvent event = spy(new PlayerRespawnEvent(player, originalLocation, false));
+        given(settings.getProperty(RestrictionSettings.NO_TELEPORT)).willReturn(false);
+        given(listenerService.shouldCancelEvent(event)).willReturn(true);
+        given(spawnLoader.getSpawnLocation(player)).willReturn(newLocation);
+
+        // when
+        listener.onPlayerRespawn(event);
+
+        // then
+        verify(spawnLoader).getSpawnLocation(player);
+        verify(event, never()).setRespawnLocation(any());
+    }
+
+    @Test
+    public void shouldHandlePlayerRespawnNoChanges() {
+        // given
+        Player player = mock(Player.class);
+        Location originalLocation = mock(Location.class);
+        PlayerRespawnEvent event = spy(new PlayerRespawnEvent(player, originalLocation, false));
+        given(settings.getProperty(RestrictionSettings.NO_TELEPORT)).willReturn(false);
+        given(listenerService.shouldCancelEvent(event)).willReturn(true);
+        given(spawnLoader.getSpawnLocation(player)).willReturn(null);
+
+        // when
+        listener.onPlayerRespawn(event);
+
+        // then
+        verify(spawnLoader).getSpawnLocation(player);
+        verify(event, never()).setRespawnLocation(any());
+    }
+
+    @Test
     public void shouldHandlePlayerJoining() {
         // given
         Player player = mock(Player.class);
@@ -551,7 +646,7 @@ public class PlayerListenerTest {
     }
 
     @Test
-    public void shouldNotInterfereWithUnrestrictedUser() {
+    public void shouldNotInterfereWithUnrestrictedUser() throws FailedVerificationException {
         // given
         String name = "Player01";
         Player player = mockPlayerWithName(name);
@@ -563,12 +658,13 @@ public class PlayerListenerTest {
 
         // then
         verify(validationService).isUnrestricted(name);
+        verify(onJoinVerifier).checkSingleSession(name);
         verifyNoModifyingCalls(event);
-        verifyZeroInteractions(onJoinVerifier);
+        verifyNoMoreInteractions(onJoinVerifier);
     }
 
     @Test
-    public void shouldStopHandlingForFullServer() {
+    public void shouldStopHandlingForFullServer() throws FailedVerificationException {
         // given
         String name = "someone";
         Player player = mockPlayerWithName(name);
@@ -581,12 +677,14 @@ public class PlayerListenerTest {
 
         // then
         verify(validationService).isUnrestricted(name);
-        verify(onJoinVerifier, only()).refusePlayerForFullServer(event);
+        verify(onJoinVerifier).checkSingleSession(name);
+        verify(onJoinVerifier).refusePlayerForFullServer(event);
+        verifyNoMoreInteractions(onJoinVerifier);
         verifyNoModifyingCalls(event);
     }
 
     @Test
-    public void shouldStopHandlingEventForBadResult() {
+    public void shouldStopHandlingEventForBadResult() throws FailedVerificationException {
         // given
         String name = "someone";
         Player player = mockPlayerWithName(name);
@@ -601,65 +699,118 @@ public class PlayerListenerTest {
 
         // then
         verify(validationService).isUnrestricted(name);
-        verify(onJoinVerifier, only()).refusePlayerForFullServer(event);
+        verify(onJoinVerifier).checkSingleSession(name);
+        verify(onJoinVerifier).refusePlayerForFullServer(event);
         verifyNoModifyingCalls(event);
     }
 
     @Test
-    public void shouldPerformAllJoinVerificationsSuccessfully() throws FailedVerificationException {
+    public void shouldPerformAllJoinVerificationsSuccessfullyPreLoginLowest() throws FailedVerificationException {
+        // given
+        String name = "someone";
+        UUID uniqueId = UUID.fromString("753493c9-33ba-4a4a-bf61-1bce9d3c9a71");
+        String ip = "12.34.56.78";
+
+        AsyncPlayerPreLoginEvent preLoginEvent = spy(new AsyncPlayerPreLoginEvent(name, mockAddrWithIp(ip), uniqueId));
+        given(validationService.isUnrestricted(name)).willReturn(false);
+
+        // when
+        listener.onAsyncPlayerPreLoginEventLowest(preLoginEvent);
+
+        // then
+        verify(validationService).isUnrestricted(name);
+        verify(onJoinVerifier).checkIsValidName(name);
+        verifyNoInteractions(dataSource);
+        verifyNoModifyingCalls(preLoginEvent);
+    }
+
+    @Test
+    public void shouldKickPreLoginLowestUnresolvedHostname() {
+        // given
+        String name = "someone";
+        UUID uniqueId = UUID.fromString("753493c9-33ba-4a4a-bf61-1bce9d3c9a71");
+    
+        @SuppressWarnings("ConstantConditions")
+        AsyncPlayerPreLoginEvent preLoginEvent = spy(new AsyncPlayerPreLoginEvent(name, null, uniqueId));
+        given(messages.retrieveSingle(name, MessageKey.KICK_UNRESOLVED_HOSTNAME)).willReturn("Unresolved hostname");
+
+        // when
+        listener.onAsyncPlayerPreLoginEventLowest(preLoginEvent);
+
+        // then
+        verify(preLoginEvent).disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, "Unresolved hostname");
+        verifyNoMoreInteractions(onJoinVerifier);
+    }
+
+    @Test
+    public void shouldPerformAllJoinVerificationsSuccessfullyPreLoginHighest() throws FailedVerificationException {
+        // given
+        String name = "someone";
+        UUID uniqueId = UUID.fromString("753493c9-33ba-4a4a-bf61-1bce9d3c9a71");
+        String ip = "12.34.56.78";
+
+        AsyncPlayerPreLoginEvent preLoginEvent = spy(new AsyncPlayerPreLoginEvent(name, mockAddrWithIp(ip), uniqueId));
+        given(validationService.isUnrestricted(name)).willReturn(false);
+        PlayerAuth auth = PlayerAuth.builder().name(name).build();
+        given(dataSource.getAuth(name)).willReturn(auth);
+
+        // when
+        listener.onAsyncPlayerPreLoginEventHighest(preLoginEvent);
+
+        // then
+        verify(validationService).isUnrestricted(name);
+        verify(onJoinVerifier).checkKickNonRegistered(true);
+        verify(onJoinVerifier).checkAntibot(name, true);
+        verify(onJoinVerifier).checkNameCasing(name, auth);
+        verify(onJoinVerifier).checkPlayerCountry(name, ip, true);
+        verifyNoModifyingCalls(preLoginEvent);
+    }
+
+    @Test
+    public void shouldPerformAllJoinVerificationsSuccessfullyLogin() {
         // given
         String name = "someone";
         Player player = mockPlayerWithName(name);
         String ip = "12.34.56.78";
 
-        PlayerLoginEvent event = spy(new PlayerLoginEvent(player, "", mockAddrWithIp(ip)));
+        PlayerLoginEvent loginEvent = spy(new PlayerLoginEvent(player, "", mockAddrWithIp(ip)));
         given(validationService.isUnrestricted(name)).willReturn(false);
-        given(onJoinVerifier.refusePlayerForFullServer(event)).willReturn(false);
-        PlayerAuth auth = PlayerAuth.builder().name(name).build();
-        given(dataSource.getAuth(name)).willReturn(auth);
+        given(onJoinVerifier.refusePlayerForFullServer(loginEvent)).willReturn(false);
 
         // when
-        listener.onPlayerLogin(event);
+        listener.onPlayerLogin(loginEvent);
 
         // then
         verify(validationService).isUnrestricted(name);
-        verify(onJoinVerifier).refusePlayerForFullServer(event);
-        verify(onJoinVerifier).checkSingleSession(name);
-        verify(onJoinVerifier).checkIsValidName(name);
-        verify(onJoinVerifier).checkAntibot(any(JoiningPlayer.class), eq(true));
-        verify(onJoinVerifier).checkKickNonRegistered(true);
-        verify(onJoinVerifier).checkNameCasing(name, auth);
-        verify(onJoinVerifier).checkPlayerCountry(any(JoiningPlayer.class), eq(ip), eq(true));
-        verifyNoModifyingCalls(event);
+        verify(onJoinVerifier).refusePlayerForFullServer(loginEvent);
+        verifyNoInteractions(dataSource);
+        verifyNoModifyingCalls(loginEvent);
     }
 
     @Test
     public void shouldAbortPlayerJoinForInvalidName() throws FailedVerificationException {
         // given
         String name = "inval!dName";
-        Player player = mockPlayerWithName(name);
-        TestHelper.mockPlayerIp(player, "33.32.33.33");
-        PlayerLoginEvent event = spy(new PlayerLoginEvent(player, "", player.getAddress().getAddress()));
+        UUID uniqueId = UUID.fromString("753493c9-33ba-4a4a-bf61-1bce9d3c9a71");
+        InetAddress ip = mockAddrWithIp("33.32.33.33");
+        AsyncPlayerPreLoginEvent event = spy(new AsyncPlayerPreLoginEvent(name, ip, uniqueId));
         given(validationService.isUnrestricted(name)).willReturn(false);
-        given(onJoinVerifier.refusePlayerForFullServer(event)).willReturn(false);
         FailedVerificationException exception = new FailedVerificationException(
             MessageKey.INVALID_NAME_CHARACTERS, "[a-z]");
         doThrow(exception).when(onJoinVerifier).checkIsValidName(name);
         String message = "Invalid characters!";
-        given(messages.retrieveSingle(player, exception.getReason(), exception.getArgs())).willReturn(message);
+        given(messages.retrieveSingle(name, exception.getReason(), exception.getArgs())).willReturn(message);
 
         // when
-        listener.onPlayerLogin(event);
+        listener.onAsyncPlayerPreLoginEventLowest(event);
 
         // then
         verify(validationService).isUnrestricted(name);
-        verify(onJoinVerifier).refusePlayerForFullServer(event);
-        verify(onJoinVerifier).checkSingleSession(name);
         verify(onJoinVerifier).checkIsValidName(name);
         // Check that we don't talk with the data source before performing checks that don't require it
-        verifyZeroInteractions(dataSource);
+        verifyNoInteractions(dataSource);
         verify(event).setKickMessage(message);
-        verify(event).setResult(PlayerLoginEvent.Result.KICK_OTHER);
+        verify(event).setLoginResult(AsyncPlayerPreLoginEvent.Result.KICK_OTHER);
     }
 
     @Test
@@ -696,7 +847,7 @@ public class PlayerListenerTest {
         // then
         assertThat(event.getQuitMessage(), nullValue());
         verify(antiBotService).wasPlayerKicked(name);
-        verifyZeroInteractions(management);
+        verifyNoInteractions(management);
     }
 
     @Test
@@ -784,7 +935,6 @@ public class PlayerListenerTest {
         // given
         HumanEntity player = mock(Player.class);
         InventoryView transaction = mock(InventoryView.class);
-        given(transaction.getPlayer()).willReturn(player);
         InventoryOpenEvent event = new InventoryOpenEvent(transaction);
         given(event.getPlayer()).willReturn(player);
         given(listenerService.shouldCancelEvent(player)).willReturn(false);
@@ -794,7 +944,7 @@ public class PlayerListenerTest {
 
         // then
         assertThat(event.isCancelled(), equalTo(false));
-        verifyZeroInteractions(bukkitService);
+        verifyNoInteractions(bukkitService);
     }
 
     @Test
@@ -802,8 +952,8 @@ public class PlayerListenerTest {
         // given
         HumanEntity player = mock(Player.class);
         InventoryView transaction = mock(InventoryView.class);
+        given(transaction.getTitle()).willReturn("Spawn");
         given(settings.getProperty(RestrictionSettings.UNRESTRICTED_INVENTORIES)).willReturn(Collections.emptySet());
-        given(transaction.getPlayer()).willReturn(player);
         InventoryOpenEvent event = new InventoryOpenEvent(transaction);
         given(event.getPlayer()).willReturn(player);
         given(listenerService.shouldCancelEvent(player)).willReturn(true);
@@ -832,7 +982,7 @@ public class PlayerListenerTest {
 
         // then
         assertThat(event.getJoinMessage(), equalTo(joinMsg));
-        verifyZeroInteractions(joinMessageService);
+        verifyNoInteractions(joinMessageService);
     }
 
     @Test
@@ -848,7 +998,7 @@ public class PlayerListenerTest {
 
         // then
         assertThat(event.getJoinMessage(), nullValue());
-        verifyZeroInteractions(joinMessageService);
+        verifyNoInteractions(joinMessageService);
     }
 
     @Test
@@ -869,7 +1019,7 @@ public class PlayerListenerTest {
 
         // then
         assertThat(event.getJoinMessage(), equalTo("Hello doooew (aka Displ)"));
-        verifyZeroInteractions(joinMessageService);
+        verifyNoInteractions(joinMessageService);
     }
 
     @Test
@@ -947,6 +1097,13 @@ public class PlayerListenerTest {
     private static void verifyNoModifyingCalls(PlayerLoginEvent event) {
         verify(event, atLeast(0)).getResult();
         verify(event, atLeast(0)).getAddress();
+        verifyNoMoreInteractions(event);
+    }
+
+    private static void verifyNoModifyingCalls(AsyncPlayerPreLoginEvent event) {
+        verify(event, atLeast(0)).getLoginResult();
+        verify(event, atLeast(0)).getAddress();
+        verify(event, atLeast(0)).getName();
         verifyNoMoreInteractions(event);
     }
 

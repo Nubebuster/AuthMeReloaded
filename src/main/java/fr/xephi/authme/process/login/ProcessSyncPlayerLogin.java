@@ -1,9 +1,9 @@
 package fr.xephi.authme.process.login;
 
 import fr.xephi.authme.data.auth.PlayerAuth;
+import fr.xephi.authme.data.auth.PlayerCache;
 import fr.xephi.authme.data.limbo.LimboPlayer;
 import fr.xephi.authme.data.limbo.LimboService;
-import fr.xephi.authme.datasource.DataSource;
 import fr.xephi.authme.events.LoginEvent;
 import fr.xephi.authme.events.RestoreInventoryEvent;
 import fr.xephi.authme.permission.PermissionsManager;
@@ -22,6 +22,7 @@ import org.bukkit.potion.PotionEffectType;
 
 import javax.inject.Inject;
 import java.util.List;
+import java.util.Locale;
 
 import static fr.xephi.authme.settings.properties.RestrictionSettings.PROTECT_INVENTORY_BEFORE_LOGIN;
 
@@ -40,7 +41,7 @@ public class ProcessSyncPlayerLogin implements SynchronousProcess {
     private TeleportationService teleportationService;
 
     @Inject
-    private DataSource dataSource;
+    private PlayerCache playerCache;
 
     @Inject
     private CommandManager commandManager;
@@ -76,7 +77,7 @@ public class ProcessSyncPlayerLogin implements SynchronousProcess {
      * @param authsWithSameIp registered names with the same IP address as the player's
      */
     public void processPlayerLogin(Player player, boolean isFirstLogin, List<String> authsWithSameIp) {
-        final String name = player.getName().toLowerCase();
+        final String name = player.getName().toLowerCase(Locale.ROOT);
         final LimboPlayer limbo = limboService.getLimboPlayer(name);
 
         // Limbo contains the State of the Player before /login
@@ -88,7 +89,7 @@ public class ProcessSyncPlayerLogin implements SynchronousProcess {
             restoreInventory(player);
         }
 
-        final PlayerAuth auth = dataSource.getAuth(name);
+        final PlayerAuth auth = playerCache.getAuth(name);
         teleportationService.teleportOnLogin(player, auth, limbo);
 
         // We can now display the join message (if delayed)
@@ -100,7 +101,6 @@ public class ProcessSyncPlayerLogin implements SynchronousProcess {
 
         // The Login event now fires (as intended) after everything is processed
         bukkitService.callEvent(new LoginEvent(player));
-        player.saveData();
 
         // Login is done, display welcome message
         welcomeMessageConfiguration.sendWelcomeMessage(player);

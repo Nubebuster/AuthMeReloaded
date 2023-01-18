@@ -31,7 +31,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Test for {@link PasswordRegisterExecutor}.
@@ -97,7 +97,7 @@ public class PasswordRegisterExecutorTest {
         given(passwordSecurity.computeHash(anyString(), anyString())).willAnswer(
             invocation -> new HashedPassword(invocation.getArgument(0)));
         Player player = mockPlayerWithName("S1m0N");
-        TestHelper.mockPlayerIp(player, "123.45.67.89");
+        TestHelper.mockIpAddressToPlayer(player, "123.45.67.89");
         PasswordRegisterParams params = PasswordRegisterParams.of(player, "pass", "mail@example.org");
 
         // when
@@ -138,7 +138,7 @@ public class PasswordRegisterExecutorTest {
         executor.executePostPersistAction(params);
 
         // then
-        verifyZeroInteractions(bukkitService, asynchronousLogin);
+        verifyNoInteractions(bukkitService, asynchronousLogin);
         verify(syncProcessManager).processSyncPasswordRegister(player);
     }
 

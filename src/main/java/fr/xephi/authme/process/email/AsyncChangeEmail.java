@@ -5,21 +5,23 @@ import fr.xephi.authme.data.auth.PlayerAuth;
 import fr.xephi.authme.data.auth.PlayerCache;
 import fr.xephi.authme.datasource.DataSource;
 import fr.xephi.authme.events.EmailChangedEvent;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.message.MessageKey;
 import fr.xephi.authme.process.AsynchronousProcess;
 import fr.xephi.authme.service.BukkitService;
 import fr.xephi.authme.service.CommonService;
 import fr.xephi.authme.service.ValidationService;
-import fr.xephi.authme.service.bungeecord.BungeeSender;
-import fr.xephi.authme.service.bungeecord.MessageType;
 import org.bukkit.entity.Player;
 
 import javax.inject.Inject;
+import java.util.Locale;
 
 /**
  * Async task for changing the email.
  */
 public class AsyncChangeEmail implements AsynchronousProcess {
+    
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(AsyncChangeEmail.class);
 
     @Inject
     private CommonService service;
@@ -32,9 +34,6 @@ public class AsyncChangeEmail implements AsynchronousProcess {
 
     @Inject
     private ValidationService validationService;
-
-    @Inject
-    private BungeeSender bungeeSender;
 
     @Inject
     private BukkitService bukkitService;
@@ -50,10 +49,10 @@ public class AsyncChangeEmail implements AsynchronousProcess {
      * @param newEmail provided new email
      */
     public void changeEmail(Player player, String oldEmail, String newEmail) {
-        String playerName = player.getName().toLowerCase();
+        String playerName = player.getName().toLowerCase(Locale.ROOT);
         if (playerCache.isAuthenticated(playerName)) {
             PlayerAuth auth = playerCache.getAuth(playerName);
-            final String currentEmail = auth.getEmail();
+            String currentEmail = auth.getEmail();
 
             if (currentEmail == null) {
                 service.send(player, MessageKey.USAGE_ADD_EMAIL);
@@ -83,7 +82,7 @@ public class AsyncChangeEmail implements AsynchronousProcess {
         EmailChangedEvent event = bukkitService.createAndCallEvent(isAsync
             -> new EmailChangedEvent(player, oldEmail, newEmail, isAsync));
         if (event.isCancelled()) {
-            ConsoleLogger.info("Could not change email for player '" + player + "' – event was cancelled");
+            logger.info("Could not change email for player '" + player + "' – event was cancelled");
             service.send(player, MessageKey.EMAIL_CHANGE_NOT_ALLOWED);
             return;
         }
@@ -91,7 +90,7 @@ public class AsyncChangeEmail implements AsynchronousProcess {
         auth.setEmail(newEmail);
         if (dataSource.updateEmail(auth)) {
             playerCache.updatePlayer(auth);
-            bungeeSender.sendAuthMeBungeecordMessage(MessageType.REFRESH_EMAIL, player.getName());
+            // TODO: send an update when a messaging service will be implemented (CHANGE_MAIL)
             service.send(player, MessageKey.EMAIL_CHANGED_SUCCESS);
         } else {
             service.send(player, MessageKey.ERROR);

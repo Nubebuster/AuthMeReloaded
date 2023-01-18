@@ -25,7 +25,7 @@ public class PlayerAuthBuilderHelperTest {
         Player player = mock(Player.class);
         given(player.getName()).willReturn("Noah");
         String ip = "192.168.34.47";
-        TestHelper.mockPlayerIp(player, ip);
+        TestHelper.mockIpAddressToPlayer(player, ip);
         HashedPassword hashedPassword = new HashedPassword("myHash0001");
         String email = "test@example.org";
 
@@ -38,10 +38,4 @@ public class PlayerAuthBuilderHelperTest {
         assertThat(Math.abs(auth.getRegistrationDate() - System.currentTimeMillis()), lessThan(1000L));
         assertThat(auth.getPassword(), equalToHash("myHash0001"));
     }
-
-    @Test
-    public void shouldHaveHiddenConstructor() {
-        TestHelper.validateHasOnlyPrivateEmptyConstructor(PlayerAuthBuilderHelper.class);
-    }
-
 }

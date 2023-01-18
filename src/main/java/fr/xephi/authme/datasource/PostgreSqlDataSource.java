@@ -8,6 +8,7 @@ import fr.xephi.authme.data.auth.PlayerAuth;
 import fr.xephi.authme.datasource.columnshandler.AuthMeColumnsHandler;
 import fr.xephi.authme.datasource.mysqlextensions.MySqlExtension;
 import fr.xephi.authme.datasource.mysqlextensions.MySqlExtensionsFactory;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.settings.Settings;
 import fr.xephi.authme.settings.properties.DatabaseSettings;
 import fr.xephi.authme.settings.properties.HooksSettings;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static fr.xephi.authme.datasource.SqlDataSourceUtils.getNullableLong;
@@ -31,6 +33,8 @@ import static fr.xephi.authme.datasource.SqlDataSourceUtils.logSqlException;
  * PostgreSQL data source.
  */
 public class PostgreSqlDataSource extends AbstractSqlDataSource {
+
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(PostgreSqlDataSource.class);
 
     private String host;
     private String port;
@@ -53,14 +57,14 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
             this.setConnectionArguments();
         } catch (RuntimeException e) {
             if (e instanceof IllegalArgumentException) {
-                ConsoleLogger.warning("Invalid database arguments! Please check your configuration!");
-                ConsoleLogger.warning("If this error persists, please report it to the developer!");
+                logger.warning("Invalid database arguments! Please check your configuration!");
+                logger.warning("If this error persists, please report it to the developer!");
             }
             if (e instanceof PoolInitializationException) {
-                ConsoleLogger.warning("Can't initialize database connection! Please check your configuration!");
-                ConsoleLogger.warning("If this error persists, please report it to the developer!");
+                logger.warning("Can't initialize database connection! Please check your configuration!");
+                logger.warning("If this error persists, please report it to the developer!");
             }
-            ConsoleLogger.warning("Can't use the Hikari Connection Pool! Please, report this error to the developer!");
+            logger.warning("Can't use the Hikari Connection Pool! Please, report this error to the developer!");
             throw e;
         }
 
@@ -69,8 +73,8 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
             checkTablesAndColumns();
         } catch (SQLException e) {
             closeConnection();
-            ConsoleLogger.logException("Can't initialize the PostgreSQL database:", e);
-            ConsoleLogger.warning("Please check your database settings in the config.yml file!");
+            logger.logException("Can't initialize the PostgreSQL database:", e);
+            logger.warning("Please check your database settings in the config.yml file!");
             throw e;
         }
     }
@@ -116,7 +120,7 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
 
         // Database URL
         ds.setDriverClassName("org.postgresql.Driver");
-        ds.setJdbcUrl("jdbc:postgresql://" + this.host + ":" + this.port + "/" + this.database);
+        ds.setJdbcUrl(this.getJdbcUrl(this.host, this.port, this.database));
 
         // Auth
         ds.setUsername(this.username);
@@ -129,7 +133,7 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
         ds.addDataSourceProperty("cachePrepStmts", "true");
         ds.addDataSourceProperty("preparedStatementCacheQueries", "275");
 
-        ConsoleLogger.info("Connection arguments loaded, Hikari ConnectionPool ready!");
+        logger.info("Connection arguments loaded, Hikari ConnectionPool ready!");
     }
 
     @Override
@@ -138,7 +142,7 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
             ds.close();
         }
         setConnectionArguments();
-        ConsoleLogger.info("Hikari ConnectionPool arguments reloaded!");
+        logger.info("Hikari ConnectionPool arguments reloaded!");
     }
 
     private Connection getConnection() throws SQLException {
@@ -239,14 +243,22 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
 
             if (isColumnMissing(md, col.TOTP_KEY)) {
                 st.executeUpdate("ALTER TABLE " + tableName
-                    + " ADD COLUMN " + col.TOTP_KEY + " VARCHAR(16);");
+                    + " ADD COLUMN " + col.TOTP_KEY + " VARCHAR(32);");
+            } else if (SqlDataSourceUtils.getColumnSize(md, tableName, col.TOTP_KEY) != 32) {
+                st.executeUpdate("ALTER TABLE " + tableName
+                    + " ALTER COLUMN " + col.TOTP_KEY + " TYPE VARCHAR(32);");
+            }
+
+            if (!col.PLAYER_UUID.isEmpty() && isColumnMissing(md, col.PLAYER_UUID)) {
+                st.executeUpdate("ALTER TABLE " + tableName
+                    + " ADD COLUMN " + col.PLAYER_UUID + " VARCHAR(36)");
             }
         }
-        ConsoleLogger.info("PostgreSQL setup finished");
+        logger.info("PostgreSQL setup finished");
     }
 
     private boolean isColumnMissing(DatabaseMetaData metaData, String columnName) throws SQLException {
-        try (ResultSet rs = metaData.getColumns(null, null, tableName, columnName.toLowerCase())) {
+        try (ResultSet rs = metaData.getColumns(null, null, tableName, columnName.toLowerCase(Locale.ROOT))) {
             return !rs.next();
         }
     }
@@ -256,7 +268,7 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
         String sql = "SELECT * FROM " + tableName + " WHERE " + col.NAME + "=?;";
         PlayerAuth auth;
         try (Connection con = getConnection(); PreparedStatement pst = con.prepareStatement(sql)) {
-            pst.setString(1, user.toLowerCase());
+            pst.setString(1, user.toLowerCase(Locale.ROOT));
             try (ResultSet rs = pst.executeQuery()) {
                 if (rs.next()) {
                     int id = rs.getInt(col.ID);
@@ -296,6 +308,11 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
     }
 
     @Override
+    String getJdbcUrl(String host, String port, String database) {
+        return "jdbc:postgresql://" + host + ":" + port + "/" + database;
+    }
+
+    @Override
     public Set<String> getRecordsToPurge(long until) {
         Set<String> list = new HashSet<>();
         String select = "SELECT " + col.NAME + " FROM " + tableName + " WHERE GREATEST("
@@ -319,11 +336,11 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
 
     @Override
     public boolean removeAuth(String user) {
-        user = user.toLowerCase();
+        user = user.toLowerCase(Locale.ROOT);
         String sql = "DELETE FROM " + tableName + " WHERE " + col.NAME + "=?;";
         try (Connection con = getConnection(); PreparedStatement pst = con.prepareStatement(sql)) {
             sqlExtension.removeAuth(user, con);
-            pst.setString(1, user.toLowerCase());
+            pst.setString(1, user.toLowerCase(Locale.ROOT));
             pst.executeUpdate();
             return true;
         } catch (SQLException ex) {
@@ -344,7 +361,7 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
         String sql = "DELETE FROM " + tableName + " WHERE " + col.NAME + "=?;";
         try (Connection con = getConnection(); PreparedStatement pst = con.prepareStatement(sql)) {
             for (String name : toPurge) {
-                pst.setString(1, name.toLowerCase());
+                pst.setString(1, name.toLowerCase(Locale.ROOT));
                 pst.executeUpdate();
             }
         } catch (SQLException ex) {
@@ -412,7 +429,7 @@ public class PostgreSqlDataSource extends AbstractSqlDataSource {
         String sql = "UPDATE " + tableName + " SET " + col.TOTP_KEY + " = ? WHERE " + col.NAME + " = ?";
         try (Connection con = getConnection(); PreparedStatement pst = con.prepareStatement(sql)) {
             pst.setString(1, totpKey);
-            pst.setString(2, user.toLowerCase());
+            pst.setString(2, user.toLowerCase(Locale.ROOT));
             pst.executeUpdate();
             return true;
         } catch (SQLException e) {

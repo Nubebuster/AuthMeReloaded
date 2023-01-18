@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Test for {@link WelcomeMessageConfiguration}.
@@ -81,7 +81,7 @@ public class WelcomeMessageConfigurationTest {
         // then
         assertThat(result, hasSize(2));
         assertThat(result, contains(welcomeMessage.split("\\n")));
-        verifyZeroInteractions(player, playerCache, geoIpService, bukkitService, server);
+        verifyNoInteractions(player, playerCache, geoIpService, bukkitService, server);
     }
 
     @Test
@@ -92,7 +92,7 @@ public class WelcomeMessageConfigurationTest {
 
         Player player = mock(Player.class);
         given(player.getName()).willReturn("Bobby");
-        TestHelper.mockPlayerIp(player, "123.45.66.77");
+        TestHelper.mockIpAddressToPlayer(player, "123.45.66.77");
         given(geoIpService.getCountryName("123.45.66.77")).willReturn("Syldavia");
         given(service.getProperty(PluginSettings.SERVER_NAME)).willReturn("CrazyServer");
 
@@ -104,7 +104,7 @@ public class WelcomeMessageConfigurationTest {
         assertThat(result.get(0), equalTo("Hello Bobby, your IP is 123.45.66.77"));
         assertThat(result.get(1), equalTo("Your country is Syldavia."));
         assertThat(result.get(2), equalTo("Welcome to CrazyServer!"));
-        verifyZeroInteractions(server, playerCache);
+        verifyNoInteractions(server, playerCache);
     }
 
     @Test

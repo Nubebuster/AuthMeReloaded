@@ -1,6 +1,7 @@
 package fr.xephi.authme.datasource;
 
 import fr.xephi.authme.ConsoleLogger;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -11,6 +12,8 @@ import java.sql.SQLException;
  */
 public final class SqlDataSourceUtils {
 
+    private static final ConsoleLogger logger = ConsoleLoggerFactory.get(SqlDataSourceUtils.class);
+
     private SqlDataSourceUtils() {
     }
 
@@ -20,7 +23,7 @@ public final class SqlDataSourceUtils {
      * @param e the exception to log
      */
     public static void logSqlException(SQLException e) {
-        ConsoleLogger.logException("Error during SQL operation:", e);
+        logger.logException("Error during SQL operation:", e);
     }
 
     /**
@@ -58,7 +61,7 @@ public final class SqlDataSourceUtils {
             if (nullableCode == DatabaseMetaData.columnNoNulls) {
                 return true;
             } else if (nullableCode == DatabaseMetaData.columnNullableUnknown) {
-                ConsoleLogger.warning("Unknown nullable status for column '" + columnName + "'");
+                logger.warning("Unknown nullable status for column '" + columnName + "'");
             }
         }
         return false;
@@ -81,6 +84,26 @@ public final class SqlDataSourceUtils {
                     + columnName + "' while checking its default value");
             }
             return rs.getObject("COLUMN_DEF");
+        }
+    }
+
+    /**
+     * Returns the size of a column (as per its SQL definition).
+     *
+     * @param metaData the database meta data
+     * @param tableName the name of the table in which the column is
+     * @param columnName the name of the column to check
+     * @return the size of the column
+     * @throws SQLException :)
+     */
+    public static int getColumnSize(DatabaseMetaData metaData, String tableName,
+                                         String columnName) throws SQLException {
+        try (ResultSet rs = metaData.getColumns(null, null, tableName, columnName)) {
+            if (!rs.next()) {
+                throw new IllegalStateException("Did not find meta data for column '"
+                    + columnName + "' while checking its size");
+            }
+            return rs.getInt("COLUMN_SIZE");
         }
     }
 }

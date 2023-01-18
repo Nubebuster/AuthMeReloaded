@@ -1,6 +1,5 @@
 package fr.xephi.authme.util;
 
-import fr.xephi.authme.TestHelper;
 import org.junit.Test;
 
 import static java.util.Arrays.asList;
@@ -50,15 +49,15 @@ public class StringUtilsTest {
     }
 
     @Test
-    public void shouldCheckIsEmptyUtil() {
+    public void shouldCheckIfIsBlankString() {
         // Should be true for null/empty/whitespace
-        assertTrue(StringUtils.isEmpty(null));
-        assertTrue(StringUtils.isEmpty(""));
-        assertTrue(StringUtils.isEmpty(" \t"));
+        assertTrue(StringUtils.isBlank(null));
+        assertTrue(StringUtils.isBlank(""));
+        assertTrue(StringUtils.isBlank(" \t"));
 
         // Should be false if string has content
-        assertFalse(StringUtils.isEmpty("P"));
-        assertFalse(StringUtils.isEmpty(" test"));
+        assertFalse(StringUtils.isBlank("P"));
+        assertFalse(StringUtils.isBlank(" test"));
     }
 
     @Test
@@ -75,11 +74,6 @@ public class StringUtilsTest {
         assertThat(StringUtils.getDifference("test", "taste"), equalTo(0.4));
         assertThat(StringUtils.getDifference("test", "bear"), equalTo(0.75));
         assertThat(StringUtils.getDifference("test", "something"), greaterThan(0.88));
-    }
-
-    @Test
-    public void shouldHaveHiddenConstructor() {
-        TestHelper.validateHasOnlyPrivateEmptyConstructor(StringUtils.class);
     }
 
     @Test

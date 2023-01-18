@@ -22,6 +22,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 
 import java.util.Collections;
+import java.util.Locale;
 
 import static fr.xephi.authme.service.BukkitServiceTestHelper.setBukkitServiceToRunTaskAsynchronously;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,8 +31,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 /**
  * Test for {@link RecoverEmailCommand}.
@@ -89,7 +90,7 @@ public class RecoverEmailCommandTest {
 
         // then
         verify(commonService).send(sender, MessageKey.INCOMPLETE_EMAIL_SETTINGS);
-        verifyZeroInteractions(dataSource, passwordSecurity);
+        verifyNoInteractions(dataSource, passwordSecurity);
     }
 
     @Test
@@ -106,7 +107,7 @@ public class RecoverEmailCommandTest {
 
         // then
         verify(emailService).hasAllInformation();
-        verifyZeroInteractions(dataSource);
+        verifyNoInteractions(dataSource);
         verify(commonService).send(sender, MessageKey.ALREADY_LOGGED_IN_ERROR);
     }
 
@@ -187,7 +188,7 @@ public class RecoverEmailCommandTest {
         setBukkitServiceToRunTaskAsynchronously(bukkitService);
 
         // when
-        command.executeCommand(sender, Collections.singletonList(email.toUpperCase()));
+        command.executeCommand(sender, Collections.singletonList(email.toUpperCase(Locale.ROOT)));
 
         // then
         verify(emailService).hasAllInformation();

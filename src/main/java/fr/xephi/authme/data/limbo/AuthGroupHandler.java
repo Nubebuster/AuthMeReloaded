@@ -2,6 +2,7 @@ package fr.xephi.authme.data.limbo;
 
 import fr.xephi.authme.ConsoleLogger;
 import fr.xephi.authme.initialization.Reloadable;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.permission.PermissionsManager;
 import fr.xephi.authme.settings.Settings;
 import fr.xephi.authme.settings.properties.PluginSettings;
@@ -26,14 +27,16 @@ import java.util.Collections;
  */
 class AuthGroupHandler implements Reloadable {
 
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(AuthGroupHandler.class);
+
     @Inject
     private PermissionsManager permissionsManager;
 
     @Inject
     private Settings settings;
 
-    private String unregisteredGroup;
-    private String registeredGroup;
+    private UserGroup unregisteredGroup;
+    private UserGroup registeredGroup;
 
     AuthGroupHandler() {
     }
@@ -50,7 +53,7 @@ class AuthGroupHandler implements Reloadable {
             return;
         }
 
-        Collection<String> previousGroups = limbo == null ? Collections.emptyList() : limbo.getGroups();
+        Collection<UserGroup> previousGroups = limbo == null ? Collections.emptyList() : limbo.getGroups();
 
         switch (groupType) {
             // Implementation note: some permission systems don't support players not being in any group,
@@ -78,7 +81,7 @@ class AuthGroupHandler implements Reloadable {
                 throw new IllegalStateException("Encountered unhandled auth group type '" + groupType + "'");
         }
 
-        ConsoleLogger.debug(() -> player.getName() + " changed to "
+        logger.debug(() -> player.getName() + " changed to "
             + groupType + ": has groups " + permissionsManager.getGroups(player));
     }
 
@@ -95,7 +98,7 @@ class AuthGroupHandler implements Reloadable {
 
         // Make sure group support is available
         if (!permissionsManager.hasGroupSupport()) {
-            ConsoleLogger.warning("The current permissions system doesn't have group support, unable to set group!");
+            logger.warning("The current permissions system doesn't have group support, unable to set group!");
             return false;
         }
         return true;
@@ -104,8 +107,8 @@ class AuthGroupHandler implements Reloadable {
     @Override
     @PostConstruct
     public void reload() {
-        unregisteredGroup = settings.getProperty(PluginSettings.UNREGISTERED_GROUP);
-        registeredGroup = settings.getProperty(PluginSettings.REGISTERED_GROUP);
+        unregisteredGroup = new UserGroup(settings.getProperty(PluginSettings.UNREGISTERED_GROUP));
+        registeredGroup = new UserGroup(settings.getProperty(PluginSettings.REGISTERED_GROUP));
     }
 
 }

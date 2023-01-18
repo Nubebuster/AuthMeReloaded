@@ -8,9 +8,11 @@ import fr.xephi.authme.data.auth.PlayerAuth;
 import fr.xephi.authme.datasource.columnshandler.AuthMeColumnsHandler;
 import fr.xephi.authme.datasource.mysqlextensions.MySqlExtension;
 import fr.xephi.authme.datasource.mysqlextensions.MySqlExtensionsFactory;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.settings.Settings;
 import fr.xephi.authme.settings.properties.DatabaseSettings;
 import fr.xephi.authme.settings.properties.HooksSettings;
+import fr.xephi.authme.util.UuidUtils;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -22,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 import static fr.xephi.authme.datasource.SqlDataSourceUtils.getNullableLong;
 import static fr.xephi.authme.datasource.SqlDataSourceUtils.logSqlException;
@@ -32,9 +36,11 @@ import static fr.xephi.authme.datasource.SqlDataSourceUtils.logSqlException;
  */
 @SuppressWarnings({"checkstyle:AbbreviationAsWordInName"}) // Justification: Class name cannot be changed anymore
 public class MySQL extends AbstractSqlDataSource {
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(MySQL.class);
 
     private boolean useSsl;
     private boolean serverCertificateVerification;
+    private boolean allowPublicKeyRetrieval;
     private String host;
     private String port;
     private String username;
@@ -56,14 +62,14 @@ public class MySQL extends AbstractSqlDataSource {
             this.setConnectionArguments();
         } catch (RuntimeException e) {
             if (e instanceof IllegalArgumentException) {
-                ConsoleLogger.warning("Invalid database arguments! Please check your configuration!");
-                ConsoleLogger.warning("If this error persists, please report it to the developer!");
+                logger.warning("Invalid database arguments! Please check your configuration!");
+                logger.warning("If this error persists, please report it to the developer!");
             }
             if (e instanceof PoolInitializationException) {
-                ConsoleLogger.warning("Can't initialize database connection! Please check your configuration!");
-                ConsoleLogger.warning("If this error persists, please report it to the developer!");
+                logger.warning("Can't initialize database connection! Please check your configuration!");
+                logger.warning("If this error persists, please report it to the developer!");
             }
-            ConsoleLogger.warning("Can't use the Hikari Connection Pool! Please, report this error to the developer!");
+            logger.warning("Can't use the Hikari Connection Pool! Please, report this error to the developer!");
             throw e;
         }
 
@@ -72,8 +78,8 @@ public class MySQL extends AbstractSqlDataSource {
             checkTablesAndColumns();
         } catch (SQLException e) {
             closeConnection();
-            ConsoleLogger.logException("Can't initialize the MySQL database:", e);
-            ConsoleLogger.warning("Please check your database settings in the config.yml file!");
+            logger.logException("Can't initialize the MySQL database:", e);
+            logger.warning("Please check your database settings in the config.yml file!");
             throw e;
         }
     }
@@ -82,6 +88,15 @@ public class MySQL extends AbstractSqlDataSource {
     MySQL(Settings settings, HikariDataSource hikariDataSource, MySqlExtensionsFactory extensionsFactory) {
         ds = hikariDataSource;
         setParameters(settings, extensionsFactory);
+    }
+
+    /**
+     * Returns the path of the Driver class to use when connecting to the database.
+     *
+     * @return the dotted path of the SQL driver class to be used
+     */
+    protected String getDriverClassName() {
+        return "com.mysql.cj.jdbc.Driver";
     }
 
     /**
@@ -105,6 +120,7 @@ public class MySQL extends AbstractSqlDataSource {
         this.maxLifetime = settings.getProperty(DatabaseSettings.MYSQL_CONNECTION_MAX_LIFETIME);
         this.useSsl = settings.getProperty(DatabaseSettings.MYSQL_USE_SSL);
         this.serverCertificateVerification = settings.getProperty(DatabaseSettings.MYSQL_CHECK_SERVER_CERTIFICATE);
+        this.allowPublicKeyRetrieval = settings.getProperty(DatabaseSettings.MYSQL_ALLOW_PUBLIC_KEY_RETRIEVAL);
     }
 
     /**
@@ -116,14 +132,17 @@ public class MySQL extends AbstractSqlDataSource {
 
         // Pool Settings
         ds.setMaximumPoolSize(poolSize);
-        ds.setMaxLifetime(maxLifetime * 1000);
+        ds.setMaxLifetime(maxLifetime * 1000L);
 
         // Database URL
-        ds.setJdbcUrl("jdbc:mysql://" + this.host + ":" + this.port + "/" + this.database);
+        ds.setJdbcUrl(this.getJdbcUrl(this.host, this.port, this.database));
 
         // Auth
         ds.setUsername(this.username);
         ds.setPassword(this.password);
+        
+        // Driver
+        ds.setDriverClassName(this.getDriverClassName());
 
         // Request mysql over SSL
         ds.addDataSourceProperty("useSSL", String.valueOf(useSsl));
@@ -131,6 +150,9 @@ public class MySQL extends AbstractSqlDataSource {
         // Disabling server certificate verification on need
         if (!serverCertificateVerification) {
             ds.addDataSourceProperty("verifyServerCertificate", String.valueOf(false));
+        }        // Disabling server certificate verification on need
+        if (allowPublicKeyRetrieval) {
+            ds.addDataSourceProperty("allowPublicKeyRetrieval", String.valueOf(true));
         }
 
         // Encoding
@@ -147,7 +169,7 @@ public class MySQL extends AbstractSqlDataSource {
         ds.addDataSourceProperty("prepStmtCacheSize", "275");
         ds.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
 
-        ConsoleLogger.info("Connection arguments loaded, Hikari ConnectionPool ready!");
+        logger.info("Connection arguments loaded, Hikari ConnectionPool ready!");
     }
 
     @Override
@@ -156,7 +178,7 @@ public class MySQL extends AbstractSqlDataSource {
             ds.close();
         }
         setConnectionArguments();
-        ConsoleLogger.info("Hikari ConnectionPool arguments reloaded!");
+        logger.info("Hikari ConnectionPool arguments reloaded!");
     }
 
     private Connection getConnection() throws SQLException {
@@ -166,6 +188,7 @@ public class MySQL extends AbstractSqlDataSource {
     /**
      * Creates the table or any of its required columns if they don't exist.
      */
+    @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:JavaNCSS"})
     private void checkTablesAndColumns() throws SQLException {
         try (Connection con = getConnection(); Statement st = con.createStatement()) {
             // Create table with ID column if it doesn't exist
@@ -262,14 +285,22 @@ public class MySQL extends AbstractSqlDataSource {
 
             if (isColumnMissing(md, col.TOTP_KEY)) {
                 st.executeUpdate("ALTER TABLE " + tableName
-                    + " ADD COLUMN " + col.TOTP_KEY + " VARCHAR(16);");
+                    + " ADD COLUMN " + col.TOTP_KEY + " VARCHAR(32);");
+            } else if (SqlDataSourceUtils.getColumnSize(md, tableName, col.TOTP_KEY) != 32) {
+                st.executeUpdate("ALTER TABLE " + tableName
+                    + " MODIFY " + col.TOTP_KEY + " VARCHAR(32);");
+            }
+
+            if (!col.PLAYER_UUID.isEmpty() && isColumnMissing(md, col.PLAYER_UUID)) {
+                st.executeUpdate("ALTER TABLE " + tableName
+                    + " ADD COLUMN " + col.PLAYER_UUID + " VARCHAR(36)");
             }
         }
-        ConsoleLogger.info("MySQL setup finished");
+        logger.info("MySQL setup finished");
     }
 
     private boolean isColumnMissing(DatabaseMetaData metaData, String columnName) throws SQLException {
-        try (ResultSet rs = metaData.getColumns(null, null, tableName, columnName)) {
+        try (ResultSet rs = metaData.getColumns(database, null, tableName, columnName)) {
             return !rs.next();
         }
     }
@@ -279,7 +310,7 @@ public class MySQL extends AbstractSqlDataSource {
         String sql = "SELECT * FROM " + tableName + " WHERE " + col.NAME + "=?;";
         PlayerAuth auth;
         try (Connection con = getConnection(); PreparedStatement pst = con.prepareStatement(sql)) {
-            pst.setString(1, user.toLowerCase());
+            pst.setString(1, user.toLowerCase(Locale.ROOT));
             try (ResultSet rs = pst.executeQuery()) {
                 if (rs.next()) {
                     int id = rs.getInt(col.ID);
@@ -319,6 +350,11 @@ public class MySQL extends AbstractSqlDataSource {
     }
 
     @Override
+    String getJdbcUrl(String host, String port, String database) {
+        return "jdbc:mysql://" + host + ":" + port + "/" + database;
+    }
+
+    @Override
     public Set<String> getRecordsToPurge(long until) {
         Set<String> list = new HashSet<>();
         String select = "SELECT " + col.NAME + " FROM " + tableName + " WHERE GREATEST("
@@ -342,11 +378,11 @@ public class MySQL extends AbstractSqlDataSource {
 
     @Override
     public boolean removeAuth(String user) {
-        user = user.toLowerCase();
+        user = user.toLowerCase(Locale.ROOT);
         String sql = "DELETE FROM " + tableName + " WHERE " + col.NAME + "=?;";
         try (Connection con = getConnection(); PreparedStatement pst = con.prepareStatement(sql)) {
             sqlExtension.removeAuth(user, con);
-            pst.setString(1, user.toLowerCase());
+            pst.setString(1, user.toLowerCase(Locale.ROOT));
             pst.executeUpdate();
             return true;
         } catch (SQLException ex) {
@@ -367,7 +403,7 @@ public class MySQL extends AbstractSqlDataSource {
         String sql = "DELETE FROM " + tableName + " WHERE " + col.NAME + "=?;";
         try (Connection con = getConnection(); PreparedStatement pst = con.prepareStatement(sql)) {
             for (String name : toPurge) {
-                pst.setString(1, name.toLowerCase());
+                pst.setString(1, name.toLowerCase(Locale.ROOT));
                 pst.executeUpdate();
             }
         } catch (SQLException ex) {
@@ -435,7 +471,7 @@ public class MySQL extends AbstractSqlDataSource {
         String sql = "UPDATE " + tableName + " SET " + col.TOTP_KEY + " = ? WHERE " + col.NAME + " = ?";
         try (Connection con = getConnection(); PreparedStatement pst = con.prepareStatement(sql)) {
             pst.setString(1, totpKey);
-            pst.setString(2, user.toLowerCase());
+            pst.setString(2, user.toLowerCase(Locale.ROOT));
             pst.executeUpdate();
             return true;
         } catch (SQLException e) {
@@ -454,6 +490,8 @@ public class MySQL extends AbstractSqlDataSource {
     private PlayerAuth buildAuthFromResultSet(ResultSet row) throws SQLException {
         String salt = col.SALT.isEmpty() ? null : row.getString(col.SALT);
         int group = col.GROUP.isEmpty() ? -1 : row.getInt(col.GROUP);
+        UUID uuid = col.PLAYER_UUID.isEmpty()
+            ? null : UuidUtils.parseUuidSafely(row.getString(col.PLAYER_UUID));
         return PlayerAuth.builder()
             .name(row.getString(col.NAME))
             .realName(row.getString(col.REAL_NAME))
@@ -471,6 +509,7 @@ public class MySQL extends AbstractSqlDataSource {
             .locZ(row.getDouble(col.LASTLOC_Z))
             .locYaw(row.getFloat(col.LASTLOC_YAW))
             .locPitch(row.getFloat(col.LASTLOC_PITCH))
+            .uuid(uuid)
             .build();
     }
 }

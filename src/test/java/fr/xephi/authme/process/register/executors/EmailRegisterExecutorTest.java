@@ -28,7 +28,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Test for {@link EmailRegisterExecutor}.
@@ -110,7 +110,7 @@ public class EmailRegisterExecutorTest {
         given(passwordSecurity.computeHash(anyString(), anyString())).willAnswer(
             invocation -> new HashedPassword(invocation.getArgument(0)));
         Player player = mock(Player.class);
-        TestHelper.mockPlayerIp(player, "123.45.67.89");
+        TestHelper.mockIpAddressToPlayer(player, "123.45.67.89");
         given(player.getName()).willReturn("Veronica");
         EmailRegisterParams params = EmailRegisterParams.of(player, "test@example.com");
 
@@ -158,7 +158,7 @@ public class EmailRegisterExecutorTest {
         // then
         verify(emailService).sendPasswordMail("Laleh", "test@example.com", password);
         verify(commonService).send(player, MessageKey.EMAIL_SEND_FAILURE);
-        verifyZeroInteractions(syncProcessManager);
+        verifyNoInteractions(syncProcessManager);
     }
 
     private static void assertIsCloseTo(long value1, long value2, long tolerance) {

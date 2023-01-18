@@ -12,6 +12,7 @@ import fr.xephi.authme.data.limbo.LimboService;
 import fr.xephi.authme.datasource.DataSource;
 import fr.xephi.authme.events.AuthMeAsyncPreLoginEvent;
 import fr.xephi.authme.events.FailedLoginEvent;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.mail.EmailService;
 import fr.xephi.authme.message.MessageKey;
 import fr.xephi.authme.permission.AdminPermission;
@@ -39,11 +40,14 @@ import org.bukkit.entity.Player;
 import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Asynchronous task for a player login.
  */
 public class AsynchronousLogin implements AsynchronousProcess {
+    
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(AsynchronousLogin.class);
 
     @Inject
     private DataSource dataSource;
@@ -116,6 +120,19 @@ public class AsynchronousLogin implements AsynchronousProcess {
     }
 
     /**
+     * Logs a player in without requiring a password.
+     *
+     * @param player the player to log in
+     * @param quiet if true no messages will be sent
+     */
+    public void forceLogin(Player player, boolean quiet) {
+        PlayerAuth auth = getPlayerAuth(player, quiet);
+        if (auth != null) {
+            performLogin(player, auth);
+        }
+    }
+
+    /**
      * Checks the precondition for authentication (like user known) and returns
      * the player's {@link PlayerAuth} object.
      *
@@ -124,15 +141,32 @@ public class AsynchronousLogin implements AsynchronousProcess {
      *         (e.g. because he is already logged in)
      */
     private PlayerAuth getPlayerAuth(Player player) {
-        final String name = player.getName().toLowerCase();
+        return getPlayerAuth(player, false);
+    }
+
+    /**
+     * Checks the precondition for authentication (like user known) and returns
+     * the player's {@link PlayerAuth} object.
+     *
+     * @param player the player to check
+     * @param quiet don't send messages
+     * @return the PlayerAuth object, or {@code null} if the player doesn't exist or may not log in
+     *         (e.g. because he is already logged in)
+     */
+    private PlayerAuth getPlayerAuth(Player player, boolean quiet) {
+        String name = player.getName().toLowerCase(Locale.ROOT);
         if (playerCache.isAuthenticated(name)) {
-            service.send(player, MessageKey.ALREADY_LOGGED_IN_ERROR);
+            if (!quiet) {
+                service.send(player, MessageKey.ALREADY_LOGGED_IN_ERROR);
+            }
             return null;
         }
 
         PlayerAuth auth = dataSource.getAuth(name);
         if (auth == null) {
-            service.send(player, MessageKey.UNKNOWN_USER);
+            if (!quiet) {
+                service.send(player, MessageKey.UNKNOWN_USER);
+            }
             // Recreate the message task to immediately send the message again as response
             limboService.resetMessageTask(player, LimboMessageType.REGISTER);
             return null;
@@ -140,13 +174,17 @@ public class AsynchronousLogin implements AsynchronousProcess {
 
         if (!service.getProperty(DatabaseSettings.MYSQL_COL_GROUP).isEmpty()
             && auth.getGroupId() == service.getProperty(HooksSettings.NON_ACTIVATED_USERS_GROUP)) {
-            service.send(player, MessageKey.ACCOUNT_NOT_ACTIVATED);
+            if (!quiet) {
+                service.send(player, MessageKey.ACCOUNT_NOT_ACTIVATED);
+            }
             return null;
         }
 
-        final String ip = PlayerUtils.getPlayerIp(player);
+        String ip = PlayerUtils.getPlayerIp(player);
         if (hasReachedMaxLoggedInPlayersForIp(player, ip)) {
-            service.send(player, MessageKey.ALREADY_LOGGED_IN_ERROR);
+            if (!quiet) {
+                service.send(player, MessageKey.ALREADY_LOGGED_IN_ERROR);
+            }
             return null;
         }
 
@@ -169,7 +207,7 @@ public class AsynchronousLogin implements AsynchronousProcess {
      *         false otherwise
      */
     private boolean checkPlayerInfo(Player player, PlayerAuth auth, String password) {
-        final String name = player.getName().toLowerCase();
+        String name = player.getName().toLowerCase(Locale.ROOT);
 
         // If captcha is required send a message to the player and deny to log in
         if (loginCaptchaManager.isCaptchaRequired(name)) {
@@ -177,7 +215,7 @@ public class AsynchronousLogin implements AsynchronousProcess {
             return false;
         }
 
-        final String ip = PlayerUtils.getPlayerIp(player);
+        String ip = PlayerUtils.getPlayerIp(player);
 
         // Increase the counts here before knowing the result of the login.
         loginCaptchaManager.increaseLoginFailureCount(name);
@@ -199,7 +237,7 @@ public class AsynchronousLogin implements AsynchronousProcess {
      * @param ip the ip address of the player
      */
     private void handleWrongPassword(Player player, PlayerAuth auth, String ip) {
-        ConsoleLogger.fine(player.getName() + " used the wrong password");
+        logger.fine(player.getName() + " used the wrong password");
 
         bukkitService.createAndCallEvent(isAsync -> new FailedLoginEvent(player, isAsync));
         if (tempbanManager.shouldTempban(ip)) {
@@ -229,18 +267,19 @@ public class AsynchronousLogin implements AsynchronousProcess {
      */
     public void performLogin(Player player, PlayerAuth auth) {
         if (player.isOnline()) {
-            final boolean isFirstLogin = (auth.getLastLogin() == null);
+            boolean isFirstLogin = (auth.getLastLogin() == null);
 
             // Update auth to reflect this new login
-            final String ip = PlayerUtils.getPlayerIp(player);
+            String ip = PlayerUtils.getPlayerIp(player);
             auth.setRealName(player.getName());
             auth.setLastLogin(System.currentTimeMillis());
             auth.setLastIp(ip);
             dataSource.updateSession(auth);
-            bungeeSender.sendAuthMeBungeecordMessage(MessageType.REFRESH_SESSION, player.getName());
+
+            // TODO: send an update when a messaging service will be implemented (SESSION)
 
             // Successful login, so reset the captcha & temp ban count
-            final String name = player.getName();
+            String name = player.getName();
             loginCaptchaManager.resetLoginFailureCount(name);
             tempbanManager.resetCount(ip, name);
             player.setNoDamageTicks(0);
@@ -251,18 +290,24 @@ public class AsynchronousLogin implements AsynchronousProcess {
             List<String> auths = dataSource.getAllAuthsByIp(auth.getLastIp());
             displayOtherAccounts(auths, player);
 
-            final String email = auth.getEmail();
+            String email = auth.getEmail();
             if (service.getProperty(EmailSettings.RECALL_PLAYERS) && Utils.isEmailEmpty(email)) {
                 service.send(player, MessageKey.ADD_EMAIL_MESSAGE);
             }
 
-            ConsoleLogger.fine(player.getName() + " logged in!");
+            logger.fine(player.getName() + " logged in " + ip);
 
             // makes player loggedin
             playerCache.updatePlayer(auth);
             dataSource.setLogged(name);
             sessionService.grantSession(name);
-            bungeeSender.sendAuthMeBungeecordMessage(MessageType.LOGIN, name);
+
+            if (bungeeSender.isEnabled()) {
+                // As described at https://www.spigotmc.org/wiki/bukkit-bungee-plugin-messaging-channel/
+                // "Keep in mind that you can't send plugin messages directly after a player joins."
+                bukkitService.scheduleSyncDelayedTask(() ->
+                    bungeeSender.sendAuthMeBungeecordMessage(player, MessageType.LOGIN), 5L);
+            }
 
             // As the scheduling executes the Task most likely after the current
             // task, we schedule it in the end
@@ -270,7 +315,7 @@ public class AsynchronousLogin implements AsynchronousProcess {
             // processed in other order.
             syncProcessManager.processSyncPlayerLogin(player, isFirstLogin, auths);
         } else {
-            ConsoleLogger.warning("Player '" + player.getName() + "' wasn't online during login process, aborted...");
+            logger.warning("Player '" + player.getName() + "' wasn't online during login process, aborted...");
         }
     }
 
@@ -297,8 +342,8 @@ public class AsynchronousLogin implements AsynchronousProcess {
 
         String message = ChatColor.GRAY + String.join(", ", formattedNames) + ".";
 
-        ConsoleLogger.fine("The user " + player.getName() + " has " + auths.size() + " accounts:");
-        ConsoleLogger.fine(message);
+        logger.fine("The user " + player.getName() + " has " + auths.size() + " accounts:");
+        logger.fine(message);
 
         for (Player onlinePlayer : bukkitService.getOnlinePlayers()) {
             if (onlinePlayer.getName().equalsIgnoreCase(player.getName())
@@ -331,12 +376,12 @@ public class AsynchronousLogin implements AsynchronousProcess {
         }
 
         // Count logged in players with same IP address
-        final String name = player.getName();
+        String name = player.getName();
         int count = 0;
         for (Player onlinePlayer : bukkitService.getOnlinePlayers()) {
             if (ip.equalsIgnoreCase(PlayerUtils.getPlayerIp(onlinePlayer))
                 && !onlinePlayer.getName().equals(name)
-                && dataSource.isLogged(onlinePlayer.getName().toLowerCase())) {
+                && dataSource.isLogged(onlinePlayer.getName().toLowerCase(Locale.ROOT))) {
                 ++count;
             }
         }

@@ -3,9 +3,12 @@ package fr.xephi.authme.settings;
 import ch.jalu.configme.configurationdata.ConfigurationData;
 import ch.jalu.configme.migration.PlainMigrationService;
 import ch.jalu.configme.properties.Property;
+import ch.jalu.configme.properties.convertresult.PropertyValue;
 import ch.jalu.configme.resource.PropertyReader;
 import fr.xephi.authme.ConsoleLogger;
+import fr.xephi.authme.datasource.DataSourceType;
 import fr.xephi.authme.initialization.DataFolder;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.output.LogLevel;
 import fr.xephi.authme.process.register.RegisterSecondaryArgument;
 import fr.xephi.authme.process.register.RegistrationType;
@@ -38,7 +41,8 @@ import static fr.xephi.authme.settings.properties.RestrictionSettings.FORCE_SPAW
  * Service for verifying that the configuration is up-to-date.
  */
 public class SettingsMigrationService extends PlainMigrationService {
-
+    
+    private static ConsoleLogger logger = ConsoleLoggerFactory.get(SettingsMigrationService.class);
     private final File pluginFolder;
 
     // Stores old "other accounts command" config if present.
@@ -57,8 +61,15 @@ public class SettingsMigrationService extends PlainMigrationService {
     @SuppressWarnings("checkstyle:BooleanExpressionComplexity")
     protected boolean performMigrations(PropertyReader reader, ConfigurationData configurationData) {
         boolean changes = false;
+
         if ("[a-zA-Z0-9_?]*".equals(reader.getString(ALLOWED_NICKNAME_CHARACTERS.getPath()))) {
             configurationData.setValue(ALLOWED_NICKNAME_CHARACTERS, "[a-zA-Z0-9_]*");
+            changes = true;
+        }
+
+        String driverClass = reader.getString("DataSource.mySQLDriverClassName");
+        if ("fr.xephi.authme.libs.org.mariadb.jdbc.Driver".equals(driverClass)) {
+            configurationData.setValue(DatabaseSettings.BACKEND, DataSourceType.MARIADB);
             changes = true;
         }
 
@@ -90,7 +101,7 @@ public class SettingsMigrationService extends PlainMigrationService {
             "settings.restrictions.keepCollisionsDisabled", "settings.forceCommands", "settings.forceCommandsAsConsole",
             "settings.forceRegisterCommands", "settings.forceRegisterCommandsAsConsole",
             "settings.sessions.sessionExpireOnIpChange", "settings.restrictions.otherAccountsCmd",
-            "settings.restrictions.otherAccountsCmdThreshold"};
+            "settings.restrictions.otherAccountsCmdThreshold, DataSource.mySQLDriverClassName"};
         for (String deprecatedPath : deprecatedProperties) {
             if (reader.contains(deprecatedPath)) {
                 return true;
@@ -103,7 +114,7 @@ public class SettingsMigrationService extends PlainMigrationService {
     // Old other accounts
     // --------
     public boolean hasOldOtherAccountsCommand() {
-        return !StringUtils.isEmpty(oldOtherAccountsCommand);
+        return !StringUtils.isBlank(oldOtherAccountsCommand);
     }
 
     public String getOldOtherAccountsCommand() {
@@ -141,7 +152,7 @@ public class SettingsMigrationService extends PlainMigrationService {
             try (FileWriter fw = new FileWriter(emailFile)) {
                 fw.write(mailText);
             } catch (IOException e) {
-                ConsoleLogger.logException("Could not create email.html configuration file:", e);
+                logger.logException("Could not create email.html configuration file:", e);
             }
         }
         return true;
@@ -160,7 +171,7 @@ public class SettingsMigrationService extends PlainMigrationService {
         boolean hasMigrated = moveProperty(oldDelayJoinProperty, DELAY_JOIN_MESSAGE, reader, configData);
 
         if (hasMigrated) {
-            ConsoleLogger.info(String.format("Note that we now also have the settings %s and %s",
+            logger.info(String.format("Note that we now also have the settings %s and %s",
                 REMOVE_JOIN_MESSAGE.getPath(), REMOVE_LEAVE_MESSAGE.getPath()));
         }
         return hasMigrated;
@@ -212,8 +223,8 @@ public class SettingsMigrationService extends PlainMigrationService {
                                                                   ConfigurationData configData) {
         final String oldPath = "Security.console.noConsoleSpam";
         final Property<LogLevel> newProperty = PluginSettings.LOG_LEVEL;
-        if (!newProperty.isPresent(reader) && reader.contains(oldPath)) {
-            ConsoleLogger.info("Moving '" + oldPath + "' to '" + newProperty.getPath() + "'");
+        if (!newProperty.isValidInResource(reader) && reader.contains(oldPath)) {
+            logger.info("Moving '" + oldPath + "' to '" + newProperty.getPath() + "'");
             boolean oldValue = Optional.ofNullable(reader.getBoolean(oldPath)).orElse(false);
             LogLevel level = oldValue ? LogLevel.INFO : LogLevel.FINE;
             configData.setValue(newProperty, level);
@@ -224,7 +235,7 @@ public class SettingsMigrationService extends PlainMigrationService {
 
     private static boolean hasOldHelpHeaderProperty(PropertyReader reader) {
         if (reader.contains("settings.helpHeader")) {
-            ConsoleLogger.warning("Help header setting is now in messages/help_xx.yml, "
+            logger.warning("Help header setting is now in messages/help_xx.yml, "
                 + "please check the file to set it again");
             return true;
         }
@@ -234,7 +245,7 @@ public class SettingsMigrationService extends PlainMigrationService {
     private static boolean hasSupportOldPasswordProperty(PropertyReader reader) {
         String path = "settings.security.supportOldPasswordHash";
         if (reader.contains(path)) {
-            ConsoleLogger.warning("Property '" + path + "' is no longer supported. "
+            logger.warning("Property '" + path + "' is no longer supported. "
                 + "Use '" + SecuritySettings.LEGACY_HASHES.getPath() + "' instead.");
             return true;
         }
@@ -250,22 +261,23 @@ public class SettingsMigrationService extends PlainMigrationService {
      */
     private static boolean convertToRegistrationType(PropertyReader reader, ConfigurationData configData) {
         String oldEmailRegisterPath = "settings.registration.enableEmailRegistrationSystem";
-        if (RegistrationSettings.REGISTRATION_TYPE.isPresent(reader) || !reader.contains(oldEmailRegisterPath)) {
+        if (RegistrationSettings.REGISTRATION_TYPE.isValidInResource(reader)
+            || !reader.contains(oldEmailRegisterPath)) {
             return false;
         }
 
-        boolean useEmail = newProperty(oldEmailRegisterPath, false).determineValue(reader);
+        boolean useEmail = newProperty(oldEmailRegisterPath, false).determineValue(reader).getValue();
         RegistrationType registrationType = useEmail ? RegistrationType.EMAIL : RegistrationType.PASSWORD;
 
         String useConfirmationPath = useEmail
             ? "settings.registration.doubleEmailCheck"
             : "settings.restrictions.enablePasswordConfirmation";
-        boolean hasConfirmation = newProperty(useConfirmationPath, false).determineValue(reader);
+        boolean hasConfirmation = newProperty(useConfirmationPath, false).determineValue(reader).getValue();
         RegisterSecondaryArgument secondaryArgument = hasConfirmation
             ? RegisterSecondaryArgument.CONFIRMATION
             : RegisterSecondaryArgument.NONE;
 
-        ConsoleLogger.warning("Merging old registration settings into '"
+        logger.warning("Merging old registration settings into '"
             + RegistrationSettings.REGISTRATION_TYPE.getPath() + "'");
         configData.setValue(RegistrationSettings.REGISTRATION_TYPE, registrationType);
         configData.setValue(RegistrationSettings.REGISTER_SECOND_ARGUMENT, secondaryArgument);
@@ -285,7 +297,7 @@ public class SettingsMigrationService extends PlainMigrationService {
         // We have two old settings replaced by only one: move the first non-empty one
         Property<String> oldUnloggedInGroup = newProperty("settings.security.unLoggedinGroup", "");
         Property<String> oldRegisteredGroup = newProperty("GroupOptions.RegisteredPlayerGroup", "");
-        if (!oldUnloggedInGroup.determineValue(reader).isEmpty()) {
+        if (!oldUnloggedInGroup.determineValue(reader).getValue().isEmpty()) {
             performedChanges = moveProperty(oldUnloggedInGroup, PluginSettings.REGISTERED_GROUP, reader, configData);
         } else {
             performedChanges = moveProperty(oldRegisteredGroup, PluginSettings.REGISTERED_GROUP, reader, configData);
@@ -309,16 +321,16 @@ public class SettingsMigrationService extends PlainMigrationService {
      */
     private static boolean moveDeprecatedHashAlgorithmIntoLegacySection(PropertyReader reader,
                                                                         ConfigurationData configData) {
-        HashAlgorithm currentHash = SecuritySettings.PASSWORD_HASH.determineValue(reader);
+        HashAlgorithm currentHash = SecuritySettings.PASSWORD_HASH.determineValue(reader).getValue();
         // Skip CUSTOM (has no class) and PLAINTEXT (is force-migrated later on in the startup process)
         if (currentHash != HashAlgorithm.CUSTOM && currentHash != HashAlgorithm.PLAINTEXT) {
             Class<?> encryptionClass = currentHash.getClazz();
             if (encryptionClass.isAnnotationPresent(Deprecated.class)) {
                 configData.setValue(SecuritySettings.PASSWORD_HASH, HashAlgorithm.SHA256);
-                Set<HashAlgorithm> legacyHashes = SecuritySettings.LEGACY_HASHES.determineValue(reader);
+                Set<HashAlgorithm> legacyHashes = SecuritySettings.LEGACY_HASHES.determineValue(reader).getValue();
                 legacyHashes.add(currentHash);
                 configData.setValue(SecuritySettings.LEGACY_HASHES, legacyHashes);
-                ConsoleLogger.warning("The hash algorithm '" + currentHash
+                logger.warning("The hash algorithm '" + currentHash
                     + "' is no longer supported for active use. New hashes will be in SHA256.");
                 return true;
             }
@@ -350,9 +362,11 @@ public class SettingsMigrationService extends PlainMigrationService {
         Property<String> commandProperty = newProperty("settings.restrictions.otherAccountsCmd", "");
         Property<Integer> commandThresholdProperty = newProperty("settings.restrictions.otherAccountsCmdThreshold", 0);
 
-        if (commandProperty.isPresent(reader) && commandThresholdProperty.determineValue(reader) >= 2) {
-            oldOtherAccountsCommand = commandProperty.determineValue(reader);
-            oldOtherAccountsCommandThreshold = commandThresholdProperty.determineValue(reader);
+        PropertyValue<String> commandPropValue = commandProperty.determineValue(reader);
+        int commandThreshold = commandThresholdProperty.determineValue(reader).getValue();
+        if (commandPropValue.isValidInResource() && commandThreshold >= 2) {
+            oldOtherAccountsCommand = commandPropValue.getValue();
+            oldOtherAccountsCommandThreshold = commandThreshold;
         }
     }
 
@@ -370,12 +384,13 @@ public class SettingsMigrationService extends PlainMigrationService {
                                               Property<T> newProperty,
                                               PropertyReader reader,
                                               ConfigurationData configData) {
-        if (reader.contains(oldProperty.getPath())) {
+        PropertyValue<T> oldPropertyValue = oldProperty.determineValue(reader);
+        if (oldPropertyValue.isValidInResource()) {
             if (reader.contains(newProperty.getPath())) {
-                ConsoleLogger.info("Detected deprecated property " + oldProperty.getPath());
+                logger.info("Detected deprecated property " + oldProperty.getPath());
             } else {
-                ConsoleLogger.info("Renaming " + oldProperty.getPath() + " to " + newProperty.getPath());
-                configData.setValue(newProperty, oldProperty.determineValue(reader));
+                logger.info("Renaming " + oldProperty.getPath() + " to " + newProperty.getPath());
+                configData.setValue(newProperty, oldPropertyValue.getValue());
             }
             return true;
         }

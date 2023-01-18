@@ -6,21 +6,18 @@ import org.bukkit.entity.Player;
 import org.mockito.Mockito;
 
 import java.io.File;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.logging.Logger;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 
 /**
  * AuthMe test utilities.
@@ -80,7 +77,7 @@ public final class TestHelper {
      */
     public static Logger setupLogger() {
         Logger logger = Mockito.mock(Logger.class);
-        ConsoleLogger.setLogger(logger);
+        ConsoleLogger.initialize(logger, null);
         return logger;
     }
 
@@ -91,35 +88,8 @@ public final class TestHelper {
      */
     public static Logger setRealLogger() {
         Logger logger = Logger.getAnonymousLogger();
-        ConsoleLogger.setLogger(logger);
+        ConsoleLogger.initialize(logger, null);
         return logger;
-    }
-
-    /**
-     * Check that a class only has a hidden, zero-argument constructor, preventing the
-     * instantiation of such classes (utility classes). Invokes the hidden constructor
-     * as to register the code coverage.
-     *
-     * @param clazz The class to validate
-     */
-    public static void validateHasOnlyPrivateEmptyConstructor(Class<?> clazz) {
-        Constructor<?>[] constructors = clazz.getDeclaredConstructors();
-        if (constructors.length > 1) {
-            throw new IllegalStateException("Class " + clazz.getSimpleName() + " has more than one constructor");
-        } else if (constructors[0].getParameterTypes().length != 0) {
-            throw new IllegalStateException("Constructor of " + clazz + " does not have empty parameter list");
-        } else if (!Modifier.isPrivate(constructors[0].getModifiers())) {
-            throw new IllegalStateException("Constructor of " + clazz + " is not private");
-        }
-
-        // Ugly hack to get coverage on the private constructors
-        // http://stackoverflow.com/questions/14077842/how-to-test-a-private-constructor-in-java-application
-        try {
-            constructors[0].setAccessible(true);
-            constructors[0].newInstance();
-        } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
-            throw new UnsupportedOperationException(e);
-        }
     }
 
     /**
@@ -128,11 +98,14 @@ public final class TestHelper {
      * @param player the player mock
      * @param ip the ip address it should return
      */
-    public static void mockPlayerIp(Player player, String ip) {
-        InetAddress inetAddress = mock(InetAddress.class);
-        given(inetAddress.getHostAddress()).willReturn(ip);
-        InetSocketAddress inetSocketAddress = new InetSocketAddress(inetAddress, 8093);
-        given(player.getAddress()).willReturn(inetSocketAddress);
+    public static void mockIpAddressToPlayer(Player player, String ip) {
+        try {
+            InetAddress inetAddress = InetAddress.getByName(ip);
+            InetSocketAddress inetSocketAddress = new InetSocketAddress(inetAddress, 8093);
+            given(player.getAddress()).willReturn(inetSocketAddress);
+        } catch (UnknownHostException e) {
+            throw new IllegalStateException("Invalid IP address: " + ip, e);
+        }
     }
 
     /**

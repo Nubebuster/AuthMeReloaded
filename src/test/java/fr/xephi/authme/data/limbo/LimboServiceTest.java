@@ -34,7 +34,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Test for {@link LimboService}, and {@link LimboServiceHelper}.
@@ -83,7 +83,7 @@ public class LimboServiceTest {
         Location playerLoc = mock(Location.class);
         given(spawnLoader.getPlayerLocationOrSpawn(player)).willReturn(playerLoc);
         given(permissionsManager.hasGroupSupport()).willReturn(true);
-        given(permissionsManager.getGroups(player)).willReturn(Collections.singletonList("permgrwp"));
+        given(permissionsManager.getGroups(player)).willReturn(Collections.singletonList(new UserGroup("permgrwp")));
         given(settings.getProperty(LimboSettings.RESTORE_ALLOW_FLIGHT)).willReturn(AllowFlightRestoreType.ENABLE);
 
         // when
@@ -105,7 +105,7 @@ public class LimboServiceTest {
         assertThat(limbo.isCanFly(), equalTo(false));
         assertThat(limbo.getFlySpeed(), equalTo(0.2f));
         assertThat(limbo.getLocation(), equalTo(playerLoc));
-        assertThat(limbo.getGroups(), equalTo(Collections.singletonList("permgrwp")));
+        assertThat(limbo.getGroups(), equalTo(Collections.singletonList(new UserGroup("permgrwp"))));
     }
 
     @Test
@@ -222,7 +222,7 @@ public class LimboServiceTest {
         limboService.replaceTasksAfterRegistration(player);
 
         // then
-        verifyZeroInteractions(taskManager);
+        verifyNoInteractions(taskManager);
         verify(authGroupHandler).setGroup(player, null, AuthGroupType.REGISTERED_UNAUTHENTICATED);
     }
 
@@ -241,7 +241,7 @@ public class LimboServiceTest {
         return player;
     }
 
-    private static LimboPlayer convertToLimboPlayer(Player player, Location location, Collection<String> groups) {
+    private static LimboPlayer convertToLimboPlayer(Player player, Location location, Collection<UserGroup> groups) {
         return new LimboPlayer(location, player.isOp(), groups, player.getAllowFlight(),
             player.getWalkSpeed(), player.getFlySpeed());
     }

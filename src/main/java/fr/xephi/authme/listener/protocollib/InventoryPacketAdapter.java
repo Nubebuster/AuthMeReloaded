@@ -28,8 +28,8 @@ import fr.xephi.authme.AuthMe;
 import fr.xephi.authme.ConsoleLogger;
 import fr.xephi.authme.data.auth.PlayerCache;
 import fr.xephi.authme.datasource.DataSource;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.service.BukkitService;
-
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -48,6 +48,7 @@ class InventoryPacketAdapter extends PacketAdapter {
     private static final int MAIN_SIZE = 27;
     private static final int HOTBAR_SIZE = 9;
 
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(InventoryPacketAdapter.class);
     private final PlayerCache playerCache;
     private final DataSource dataSource;
 
@@ -68,6 +69,11 @@ class InventoryPacketAdapter extends PacketAdapter {
         }
     }
 
+    /**
+     * Registers itself to ProtocolLib and blanks out the inventory packet to any applicable players.
+     *
+     * @param bukkitService the bukkit service (for retrieval of online players)
+     */
     public void register(BukkitService bukkitService) {
         ProtocolLibrary.getProtocolManager().addPacketListener(this);
 
@@ -84,6 +90,11 @@ class InventoryPacketAdapter extends PacketAdapter {
         ProtocolLibrary.getProtocolManager().removePacketListener(this);
     }
 
+    /**
+     * Sends a blanked out packet to the given player in order to hide the inventory.
+     *
+     * @param player the player to send the blank inventory packet to
+     */
     public void sendBlankInventoryPacket(Player player) {
         ProtocolManager protocolManager = ProtocolLibrary.getProtocolManager();
         PacketContainer inventoryPacket = protocolManager.createPacket(PacketType.Play.Server.WINDOW_ITEMS);
@@ -106,7 +117,7 @@ class InventoryPacketAdapter extends PacketAdapter {
         try {
             protocolManager.sendServerPacket(player, inventoryPacket, false);
         } catch (InvocationTargetException invocationExc) {
-            ConsoleLogger.logException("Error during sending blank inventory", invocationExc);
+            logger.logException("Error during sending blank inventory", invocationExc);
         }
     }
 }

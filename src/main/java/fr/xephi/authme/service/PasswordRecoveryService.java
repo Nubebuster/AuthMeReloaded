@@ -4,6 +4,7 @@ import fr.xephi.authme.ConsoleLogger;
 import fr.xephi.authme.datasource.DataSource;
 import fr.xephi.authme.initialization.HasCleanup;
 import fr.xephi.authme.initialization.Reloadable;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.mail.EmailService;
 import fr.xephi.authme.message.MessageKey;
 import fr.xephi.authme.message.Messages;
@@ -19,6 +20,7 @@ import org.bukkit.entity.Player;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static fr.xephi.authme.settings.properties.EmailSettings.RECOVERY_PASSWORD_LENGTH;
@@ -27,6 +29,8 @@ import static fr.xephi.authme.settings.properties.EmailSettings.RECOVERY_PASSWOR
  * Manager for password recovery.
  */
 public class PasswordRecoveryService implements Reloadable, HasCleanup {
+    
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(PasswordRecoveryService.class);
 
     @Inject
     private CommonService commonService;
@@ -73,7 +77,7 @@ public class PasswordRecoveryService implements Reloadable, HasCleanup {
         boolean couldSendMail = emailService.sendRecoveryCode(player.getName(), email, recoveryCode);
         if (couldSendMail) {
             commonService.send(player, MessageKey.RECOVERY_CODE_SENT);
-            emailCooldown.add(player.getName().toLowerCase());
+            emailCooldown.add(player.getName().toLowerCase(Locale.ROOT));
         } else {
             commonService.send(player, MessageKey.EMAIL_SEND_FAILURE);
         }
@@ -95,13 +99,13 @@ public class PasswordRecoveryService implements Reloadable, HasCleanup {
         String thePass = RandomStringUtils.generate(commonService.getProperty(RECOVERY_PASSWORD_LENGTH));
         HashedPassword hashNew = passwordSecurity.computeHash(thePass, name);
 
-        ConsoleLogger.info("Generating new password for '" + name + "'");
+        logger.info("Generating new password for '" + name + "'");
 
         dataSource.updatePassword(name, hashNew);
         boolean couldSendMail = emailService.sendPasswordMail(name, email, thePass);
         if (couldSendMail) {
             commonService.send(player, MessageKey.RECOVERY_EMAIL_SENT_MESSAGE);
-            emailCooldown.add(player.getName().toLowerCase());
+            emailCooldown.add(player.getName().toLowerCase(Locale.ROOT));
         } else {
             commonService.send(player, MessageKey.EMAIL_SEND_FAILURE);
         }
@@ -138,7 +142,7 @@ public class PasswordRecoveryService implements Reloadable, HasCleanup {
      * @return True if the player is not on cooldown.
      */
     private boolean checkEmailCooldown(Player player) {
-        Duration waitDuration = emailCooldown.getExpiration(player.getName().toLowerCase());
+        Duration waitDuration = emailCooldown.getExpiration(player.getName().toLowerCase(Locale.ROOT));
         if (waitDuration.getDuration() > 0) {
             String durationText = messages.formatDuration(waitDuration);
             messages.send(player, MessageKey.EMAIL_COOLDOWN_ERROR, durationText);

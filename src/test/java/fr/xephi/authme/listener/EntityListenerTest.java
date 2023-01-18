@@ -1,6 +1,5 @@
 package fr.xephi.authme.listener;
 
-import fr.xephi.authme.ReflectionTestUtils;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -28,7 +27,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Test for {@link EntityListener}.
@@ -77,7 +76,7 @@ public class EntityListenerTest {
 
         // then
         verify(listenerService).shouldCancelEvent(event);
-        verifyZeroInteractions(event);
+        verifyNoInteractions(event);
     }
 
     @Test
@@ -141,7 +140,7 @@ public class EntityListenerTest {
 
         // then
         verify(listenerService).shouldCancelEvent(event);
-        verifyZeroInteractions(event);
+        verifyNoInteractions(event);
     }
 
     @Test
@@ -157,7 +156,7 @@ public class EntityListenerTest {
         listener.onProjectileLaunch(event);
 
         // then
-        verifyZeroInteractions(listenerService);
+        verifyNoInteractions(listenerService);
         verify(event, never()).setCancelled(anyBoolean());
     }
 
@@ -200,8 +199,6 @@ public class EntityListenerTest {
     @Test
     public void shouldHandleOldShooterMethod() {
         // given
-        ReflectionTestUtils.setField(listener, "shooterIsLivingEntity", true);
-        ReflectionTestUtils.setField(listener, "getShooter", null);
         Projectile projectile = mock(Projectile.class);
         Player shooter = mock(Player.class);
         given(projectile.getShooter()).willReturn(shooter);

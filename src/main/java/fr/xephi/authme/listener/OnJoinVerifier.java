@@ -4,6 +4,7 @@ import fr.xephi.authme.ConsoleLogger;
 import fr.xephi.authme.data.auth.PlayerAuth;
 import fr.xephi.authme.datasource.DataSource;
 import fr.xephi.authme.initialization.Reloadable;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.message.MessageKey;
 import fr.xephi.authme.message.Messages;
 import fr.xephi.authme.permission.PermissionsManager;
@@ -24,12 +25,15 @@ import org.bukkit.event.player.PlayerLoginEvent;
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 import java.util.Collection;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
  * Service for performing various verifications when a player joins.
  */
 public class OnJoinVerifier implements Reloadable {
+
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(OnJoinVerifier.class);
 
     @Inject
     private Settings settings;
@@ -64,16 +68,16 @@ public class OnJoinVerifier implements Reloadable {
     /**
      * Checks if Antibot is enabled.
      *
-     * @param joiningPlayer   the joining player to check
+     * @param name            the joining player name to check
      * @param isAuthAvailable whether or not the player is registered
      * @throws FailedVerificationException if the verification fails
      */
-    public void checkAntibot(JoiningPlayer joiningPlayer, boolean isAuthAvailable) throws FailedVerificationException {
-        if (isAuthAvailable || permissionsManager.hasPermission(joiningPlayer, PlayerStatePermission.BYPASS_ANTIBOT)) {
+    public void checkAntibot(String name, boolean isAuthAvailable) throws FailedVerificationException {
+        if (isAuthAvailable || permissionsManager.hasPermissionOffline(name, PlayerStatePermission.BYPASS_ANTIBOT)) {
             return;
         }
         if (antiBotService.shouldKick()) {
-            antiBotService.addPlayerKick(joiningPlayer.getName());
+            antiBotService.addPlayerKick(name);
             throw new FailedVerificationException(MessageKey.KICK_ANTIBOT);
         }
     }
@@ -139,7 +143,7 @@ public class OnJoinVerifier implements Reloadable {
             event.allow();
             return false;
         } else {
-            ConsoleLogger.info("VIP player " + player.getName() + " tried to join, but the server was full");
+            logger.info("VIP player " + player.getName() + " tried to join, but the server was full");
             event.setKickMessage(messages.retrieveSingle(player, MessageKey.KICK_FULL_SERVER));
             return true;
         }
@@ -156,8 +160,8 @@ public class OnJoinVerifier implements Reloadable {
         if (auth != null && settings.getProperty(RegistrationSettings.PREVENT_OTHER_CASE)) {
             String realName = auth.getRealName(); // might be null or "Player"
 
-            if (StringUtils.isEmpty(realName) || "Player".equals(realName)) {
-                dataSource.updateRealName(connectingName.toLowerCase(), connectingName);
+            if (StringUtils.isBlank(realName) || "Player".equals(realName)) {
+                dataSource.updateRealName(connectingName.toLowerCase(Locale.ROOT), connectingName);
             } else if (!realName.equals(connectingName)) {
                 throw new FailedVerificationException(MessageKey.INVALID_NAME_CASE, realName, connectingName);
             }
@@ -167,16 +171,16 @@ public class OnJoinVerifier implements Reloadable {
     /**
      * Checks that the player's country is admitted.
      *
-     * @param joiningPlayer   the joining player to verify
+     * @param name            the joining player name to verify
      * @param address         the player address
      * @param isAuthAvailable whether or not the user is registered
      * @throws FailedVerificationException if the verification fails
      */
-    public void checkPlayerCountry(JoiningPlayer joiningPlayer, String address,
+    public void checkPlayerCountry(String name, String address,
                                    boolean isAuthAvailable) throws FailedVerificationException {
         if ((!isAuthAvailable || settings.getProperty(ProtectionSettings.ENABLE_PROTECTION_REGISTERED))
             && settings.getProperty(ProtectionSettings.ENABLE_PROTECTION)
-            && !permissionsManager.hasPermission(joiningPlayer, PlayerStatePermission.BYPASS_COUNTRY_CHECK)
+            && !permissionsManager.hasPermissionOffline(name, PlayerStatePermission.BYPASS_COUNTRY_CHECK)
             && !validationService.isCountryAdmitted(address)) {
                 throw new FailedVerificationException(MessageKey.COUNTRY_BANNED_ERROR);
         }

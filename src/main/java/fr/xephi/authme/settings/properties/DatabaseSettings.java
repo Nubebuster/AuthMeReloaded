@@ -10,7 +10,7 @@ import static ch.jalu.configme.properties.PropertyInitializer.newProperty;
 public final class DatabaseSettings implements SettingsHolder {
 
     @Comment({"What type of database do you want to use?",
-        "Valid values: SQLITE, MYSQL, POSTGRESQL"})
+        "Valid values: SQLITE, MARIADB, MYSQL, POSTGRESQL"})
     public static final Property<DataSourceType> BACKEND =
         newProperty(DataSourceType.class, "DataSource.backend", DataSourceType.SQLITE);
 
@@ -36,6 +36,11 @@ public final class DatabaseSettings implements SettingsHolder {
         "Set this option to false at your own risk if and only if you know what you're doing"})
     public static final Property<Boolean> MYSQL_CHECK_SERVER_CERTIFICATE =
         newProperty( "DataSource.mySQLCheckServerCertificate", true );
+
+    @Comment({"Authorize client to retrieve RSA server public key.",
+        "Advanced option, ignore if you don't know what it means."})
+    public static final Property<Boolean> MYSQL_ALLOW_PUBLIC_KEY_RETRIEVAL =
+        newProperty( "DataSource.mySQLAllowPublicKeyRetrieval", true );
 
     @Comment("Username to connect to the MySQL database")
     public static final Property<String> MYSQL_USERNAME =
@@ -128,6 +133,10 @@ public final class DatabaseSettings implements SettingsHolder {
     @Comment("Column for storing player LastLocation - Pitch")
     public static final Property<String> MYSQL_COL_LASTLOC_PITCH =
         newProperty("DataSource.mySQLlastlocPitch", "pitch");
+
+    @Comment("Column for storing players uuids (optional)")
+    public static final Property<String> MYSQL_COL_PLAYER_UUID =
+        newProperty( "DataSource.mySQLPlayerUUID", "" );
 
     @Comment("Column for storing players groups")
     public static final Property<String> MYSQL_COL_GROUP =

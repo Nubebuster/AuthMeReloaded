@@ -14,6 +14,7 @@ import fr.xephi.authme.datasource.converter.RoyalAuthConverter;
 import fr.xephi.authme.datasource.converter.SqliteToSql;
 import fr.xephi.authme.datasource.converter.VAuthConverter;
 import fr.xephi.authme.datasource.converter.XAuthConverter;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.message.MessageKey;
 import fr.xephi.authme.service.BukkitService;
 import fr.xephi.authme.service.CommonService;
@@ -21,6 +22,7 @@ import org.bukkit.command.CommandSender;
 
 import javax.inject.Inject;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -30,6 +32,8 @@ public class ConverterCommand implements ExecutableCommand {
 
     @VisibleForTesting
     static final Map<String, Class<? extends Converter>> CONVERTERS = getConverters();
+
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(ConverterCommand.class);
 
     @Inject
     private CommonService commonService;
@@ -52,15 +56,12 @@ public class ConverterCommand implements ExecutableCommand {
         final Converter converter = converterFactory.newInstance(converterClass);
 
         // Run the convert job
-        bukkitService.runTaskAsynchronously(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    converter.execute(sender);
-                } catch (Exception e) {
-                    commonService.send(sender, MessageKey.ERROR);
-                    ConsoleLogger.logException("Error during conversion:", e);
-                }
+        bukkitService.runTaskAsynchronously(() -> {
+            try {
+                converter.execute(sender);
+            } catch (Exception e) {
+                commonService.send(sender, MessageKey.ERROR);
+                logger.logException("Error during conversion:", e);
             }
         });
 
@@ -71,7 +72,7 @@ public class ConverterCommand implements ExecutableCommand {
     private static Class<? extends Converter> getConverterClassFromArgs(List<String> arguments) {
         return arguments.isEmpty()
             ? null
-            : CONVERTERS.get(arguments.get(0).toLowerCase());
+            : CONVERTERS.get(arguments.get(0).toLowerCase(Locale.ROOT));
     }
 
     /**

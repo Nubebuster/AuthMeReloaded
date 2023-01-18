@@ -4,6 +4,7 @@ import com.google.common.annotations.VisibleForTesting;
 import fr.xephi.authme.ConsoleLogger;
 import fr.xephi.authme.data.auth.PlayerAuth;
 import fr.xephi.authme.datasource.columnshandler.AuthMeColumnsHandler;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.settings.Settings;
 import fr.xephi.authme.settings.properties.DatabaseSettings;
 
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static fr.xephi.authme.datasource.SqlDataSourceUtils.getNullableLong;
@@ -30,6 +32,7 @@ import static fr.xephi.authme.datasource.SqlDataSourceUtils.logSqlException;
 @SuppressWarnings({"checkstyle:AbbreviationAsWordInName"}) // Justification: Class name cannot be changed anymore
 public class SQLite extends AbstractSqlDataSource {
 
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(SQLite.class);
     private final Settings settings;
     private final File dataFolder;
     private final String database;
@@ -57,7 +60,7 @@ public class SQLite extends AbstractSqlDataSource {
             this.setup();
             this.migrateIfNeeded();
         } catch (Exception ex) {
-            ConsoleLogger.logException("Error during SQLite initialization:", ex);
+            logger.logException("Error during SQLite initialization:", ex);
             throw ex;
         }
     }
@@ -85,8 +88,8 @@ public class SQLite extends AbstractSqlDataSource {
             throw new IllegalStateException("Failed to load SQLite JDBC class", e);
         }
 
-        ConsoleLogger.debug("SQLite driver loaded");
-        this.con = DriverManager.getConnection("jdbc:sqlite:plugins/AuthMe/" + database + ".db");
+        logger.debug("SQLite driver loaded");
+        this.con = DriverManager.getConnection(this.getJdbcUrl(this.dataFolder.getAbsolutePath(), "", this.database));
         this.columnsHandler = AuthMeColumnsHandler.createForSqlite(con, settings);
     }
 
@@ -96,6 +99,7 @@ public class SQLite extends AbstractSqlDataSource {
      * @throws SQLException when an SQL error occurs while initializing the database
      */
     @VisibleForTesting
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     protected void setup() throws SQLException {
         try (Statement st = con.createStatement()) {
             // Note: cannot add unique fields later on in SQLite, so we add it on initialization
@@ -180,10 +184,15 @@ public class SQLite extends AbstractSqlDataSource {
 
             if (isColumnMissing(md, col.TOTP_KEY)) {
                 st.executeUpdate("ALTER TABLE " + tableName
-                    + " ADD COLUMN " + col.TOTP_KEY + " VARCHAR(16);");
+                    + " ADD COLUMN " + col.TOTP_KEY + " VARCHAR(32);");
+            }
+
+            if (!col.PLAYER_UUID.isEmpty() && isColumnMissing(md, col.PLAYER_UUID)) {
+                st.executeUpdate("ALTER TABLE " + tableName
+                    + " ADD COLUMN " + col.PLAYER_UUID + " VARCHAR(36)");
             }
         }
-        ConsoleLogger.info("SQLite Setup finished");
+        logger.info("SQLite Setup finished");
     }
 
     /**
@@ -214,7 +223,7 @@ public class SQLite extends AbstractSqlDataSource {
             this.setup();
             this.migrateIfNeeded();
         } catch (SQLException ex) {
-            ConsoleLogger.logException("Error while reloading SQLite:", ex);
+            logger.logException("Error while reloading SQLite:", ex);
         }
     }
 
@@ -260,7 +269,7 @@ public class SQLite extends AbstractSqlDataSource {
         String delete = "DELETE FROM " + tableName + " WHERE " + col.NAME + "=?;";
         try (PreparedStatement deletePst = con.prepareStatement(delete)) {
             for (String name : toPurge) {
-                deletePst.setString(1, name.toLowerCase());
+                deletePst.setString(1, name.toLowerCase(Locale.ROOT));
                 deletePst.executeUpdate();
             }
         } catch (SQLException ex) {
@@ -272,7 +281,7 @@ public class SQLite extends AbstractSqlDataSource {
     public boolean removeAuth(String user) {
         String sql = "DELETE FROM " + tableName + " WHERE " + col.NAME + "=?;";
         try (PreparedStatement pst = con.prepareStatement(sql)) {
-            pst.setString(1, user.toLowerCase());
+            pst.setString(1, user.toLowerCase(Locale.ROOT));
             pst.executeUpdate();
             return true;
         } catch (SQLException ex) {
@@ -347,7 +356,7 @@ public class SQLite extends AbstractSqlDataSource {
         String sql = "UPDATE " + tableName + " SET " + col.TOTP_KEY + " = ? WHERE " + col.NAME + " = ?";
         try (PreparedStatement pst = con.prepareStatement(sql)) {
             pst.setString(1, totpKey);
-            pst.setString(2, user.toLowerCase());
+            pst.setString(2, user.toLowerCase(Locale.ROOT));
             pst.executeUpdate();
             return true;
         } catch (SQLException e) {
@@ -393,8 +402,13 @@ public class SQLite extends AbstractSqlDataSource {
         long currentTimestamp = System.currentTimeMillis();
         int updatedRows = st.executeUpdate(String.format("UPDATE %s SET %s = %d;",
             tableName, col.REGISTRATION_DATE, currentTimestamp));
-        ConsoleLogger.info("Created column '" + col.REGISTRATION_DATE + "' and set the current timestamp, "
+        logger.info("Created column '" + col.REGISTRATION_DATE + "' and set the current timestamp, "
             + currentTimestamp + ", to all " + updatedRows + " rows");
+    }
+
+    @Override
+    String getJdbcUrl(String dataPath, String ignored, String database) {
+        return "jdbc:sqlite:" + dataPath + File.separator + database + ".db";
     }
 
     private static void close(Connection con) {

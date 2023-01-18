@@ -1,15 +1,15 @@
 <!-- AUTO-GENERATED FILE! Do not edit this directly -->
-<!-- File auto-generated on Tue Apr 23 17:17:02 CEST 2019. See docs/config/config.tpl.md -->
+<!-- File auto-generated on Thu Jul 28 18:11:22 CEST 2022. See docs/config/config.tpl.md -->
 
 ## AuthMe Configuration
-The first time you run AuthMe it will create a config.yml file in the plugins/AuthMe folder, 
-with which you can configure various settings. This following is the initial contents of
+The first time you run AuthMe it will create a config.yml file in the plugins/AuthMe folder,
+with which you can configure various settings. The following is the initial contents of
 the generated config.yml file.
 
 ```yml
 DataSource:
     # What type of database do you want to use?
-    # Valid values: SQLITE, MYSQL, POSTGRESQL
+    # Valid values: SQLITE, MARIADB, MYSQL, POSTGRESQL
     backend: SQLITE
     # Enable the database caching system, should be disabled on bungeecord environments
     # or when a website integration is being used.
@@ -24,6 +24,9 @@ DataSource:
     # We would not recommend to set this option to false.
     # Set this option to false at your own risk if and only if you know what you're doing
     mySQLCheckServerCertificate: true
+    # Authorize client to retrieve RSA server public key.
+    # Advanced option, ignore if you don't know what it means.
+    mySQLAllowPublicKeyRetrieval: true
     # Username to connect to the MySQL database
     mySQLUsername: authme
     # Password to connect to the MySQL database
@@ -70,6 +73,8 @@ DataSource:
     mySQLlastlocYaw: yaw
     # Column for storing player LastLocation - Pitch
     mySQLlastlocPitch: pitch
+    # Column for storing players uuids (optional)
+    mySQLPlayerUUID: ''
     # Overrides the size of the DB Connection Pool, default = 10
     poolSize: 10
     # The maximum lifetime of a connection in the pool, default = 1800 seconds
@@ -85,7 +90,7 @@ ExternalBoardOptions:
     # Other MySQL columns where we need to put the username (case-sensitive)
     mySQLOtherUsernameColumns: []
     # How much log2 rounds needed in BCrypt (do not change if you do not know what it does)
-    bCryptLog2Round: 10
+    bCryptLog2Round: 12
     # phpBB table prefix defined during the phpBB installation process
     phpbbTablePrefix: phpbb_
     # phpBB activated group ID; 2 is the default registered group defined by phpBB
@@ -124,10 +129,6 @@ settings:
     # By default we schedule async tasks when talking to the database. If you want
     # typical communication with the database to happen synchronously, set this to false
     useAsyncTasks: true
-    # By default we handle the AsyncPlayerPreLoginEvent which makes the plugin faster
-    # but it is incompatible with any permission plugin not included in our compatibility list.
-    # If you have issues with permission checks on player join please disable this option.
-    useAsyncPreLoginEvent: true
     # The name of the server, used in some placeholders.
     serverName: Your Minecraft Server
     restrictions:
@@ -140,8 +141,9 @@ settings:
         # Allowed commands for unauthenticated players
         allowCommands: 
         - /login
-        - /register
+        - /log
         - /l
+        - /register
         - /reg
         - /email
         - /captcha
@@ -327,7 +329,7 @@ settings:
     removeJoinMessage: false
     # Should we remove leave messages altogether?
     removeLeaveMessage: false
-    # Do we need to add potion effect Blinding before login/reigster?
+    # Do we need to add potion effect Blinding before login/register?
     applyBlindEffect: false
     # Do we need to prevent people to login with another case?
     # If Xephi is registered, then Xephi can login, but not XEPHI/xephi/XePhI
@@ -400,6 +402,14 @@ Protection:
     enableProtection: false
     # Apply the protection also to registered usernames
     enableProtectionRegistered: true
+    geoIpDatabase:
+        # The MaxMind clientId used to download the GeoIp database,
+        # get one at https://www.maxmind.com/en/accounts/current/license-key
+        # The EssentialsX project has a very useful tutorial on how to generate
+        # the license key: https://github.com/EssentialsX/Wiki/blob/master/GeoIP.md
+        clientId: ''
+        # The MaxMind licenseKey used to download the GeoIp database.
+        licenseKey: ''
     # Countries allowed to join the server and register. For country codes, see
     # https://dev.maxmind.com/geoip/legacy/codes/iso3166/
     # Use "LOCALHOST" for local addresses.
@@ -577,9 +587,9 @@ NoCheatPlusKickFix:
 
 ```
 
-To change settings on a running server, save your changes to config.yml and use 
+To change settings on a running server, save your changes to config.yml and use
 `/authme reload`.
 
 ---
 
-This page was automatically generated on the [AuthMe/AuthMeReloaded repository](https://github.com/AuthMe/AuthMeReloaded/tree/master/docs/) on Tue Apr 23 17:17:02 CEST 2019
+This page was automatically generated on the [AuthMe/AuthMeReloaded repository](https://github.com/AuthMe/AuthMeReloaded/tree/master/docs/) on Thu Jul 28 18:11:22 CEST 2022

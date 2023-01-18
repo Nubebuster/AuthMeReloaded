@@ -1,6 +1,7 @@
 package fr.xephi.authme.mail;
 
 import fr.xephi.authme.ConsoleLogger;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.output.LogLevel;
 import fr.xephi.authme.settings.Settings;
 import fr.xephi.authme.settings.properties.EmailSettings;
@@ -26,6 +27,8 @@ import static fr.xephi.authme.settings.properties.EmailSettings.MAIL_PASSWORD;
  */
 public class SendMailSsl {
 
+    private ConsoleLogger logger = ConsoleLoggerFactory.get(SendMailSsl.class);
+
     @Inject
     private Settings settings;
 
@@ -48,11 +51,11 @@ public class SendMailSsl {
      * @throws EmailException if the mail is invalid
      */
     public HtmlEmail initializeMail(String emailAddress) throws EmailException {
-        String senderMail = StringUtils.isEmpty(settings.getProperty(EmailSettings.MAIL_ADDRESS))
+        String senderMail = StringUtils.isBlank(settings.getProperty(EmailSettings.MAIL_ADDRESS))
             ? settings.getProperty(EmailSettings.MAIL_ACCOUNT)
             : settings.getProperty(EmailSettings.MAIL_ADDRESS);
 
-        String senderName = StringUtils.isEmpty(settings.getProperty(EmailSettings.MAIL_SENDER_NAME))
+        String senderName = StringUtils.isBlank(settings.getProperty(EmailSettings.MAIL_SENDER_NAME))
             ? senderMail
             : settings.getProperty(EmailSettings.MAIL_SENDER_NAME);
         String mailPassword = settings.getProperty(EmailSettings.MAIL_PASSWORD);
@@ -96,14 +99,14 @@ public class SendMailSsl {
             email.setHtmlMsg(content);
             email.setTextMsg(content);
         } catch (EmailException e) {
-            ConsoleLogger.logException("Your email.html config contains an error and cannot be sent:", e);
+            logger.logException("Your email.html config contains an error and cannot be sent:", e);
             return false;
         }
         try {
             email.send();
             return true;
         } catch (EmailException e) {
-            ConsoleLogger.logException("Failed to send a mail to " + email.getToAddresses() + ":", e);
+            logger.logException("Failed to send a mail to " + email.getToAddresses() + ":", e);
             return false;
         }
     }

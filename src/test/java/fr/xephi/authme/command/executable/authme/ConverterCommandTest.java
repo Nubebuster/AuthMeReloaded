@@ -17,6 +17,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -29,8 +30,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.hamcrest.MockitoHamcrest.argThat;
 
 /**
@@ -67,7 +68,7 @@ public class ConverterCommandTest {
         // then
         String converters = String.join(", ", ConverterCommand.CONVERTERS.keySet());
         verify(sender).sendMessage(argThat(containsString(converters)));
-        verifyZeroInteractions(commonService, converterFactory, bukkitService);
+        verifyNoInteractions(commonService, converterFactory, bukkitService);
     }
 
     @Test
@@ -81,7 +82,7 @@ public class ConverterCommandTest {
         // then
         String converters = String.join(", ", ConverterCommand.CONVERTERS.keySet());
         verify(sender).sendMessage(argThat(containsString(converters)));
-        verifyZeroInteractions(commonService, converterFactory, bukkitService);
+        verifyNoInteractions(commonService, converterFactory, bukkitService);
     }
 
     @Test
@@ -92,7 +93,7 @@ public class ConverterCommandTest {
         // when / then
         for (Map.Entry<String, Class<? extends Converter>> entry : ConverterCommand.CONVERTERS.entrySet()) {
             assertThat("Name is not null or empty",
-                StringUtils.isEmpty(entry.getKey()), equalTo(false));
+                StringUtils.isBlank(entry.getKey()), equalTo(false));
 
             assertThat("Converter class is unique for each entry",
                 classes.add(entry.getValue()), equalTo(true));
@@ -129,7 +130,7 @@ public class ConverterCommandTest {
         setBukkitServiceToRunTaskAsynchronously(bukkitService);
 
         // when
-        command.executeCommand(sender, Collections.singletonList(converterName.toUpperCase()));
+        command.executeCommand(sender, Collections.singletonList(converterName.toUpperCase(Locale.ROOT)));
 
         // then
         verify(converter).execute(sender);

@@ -2,12 +2,14 @@ package fr.xephi.authme.data.limbo;
 
 import fr.xephi.authme.ConsoleLogger;
 import fr.xephi.authme.data.limbo.persistence.LimboPersistence;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.settings.Settings;
 import fr.xephi.authme.settings.SpawnLoader;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import javax.inject.Inject;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +23,8 @@ import static fr.xephi.authme.settings.properties.LimboSettings.RESTORE_WALK_SPE
  * put in which have joined but not yet logged in.
  */
 public class LimboService {
+
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(LimboService.class);
 
     private final Map<String, LimboPlayer> entries = new ConcurrentHashMap<>();
 
@@ -52,17 +56,17 @@ public class LimboService {
      * @param isRegistered whether or not the player is registered
      */
     public void createLimboPlayer(Player player, boolean isRegistered) {
-        final String name = player.getName().toLowerCase();
+        final String name = player.getName().toLowerCase(Locale.ROOT);
 
         LimboPlayer limboFromDisk = persistence.getLimboPlayer(player);
         if (limboFromDisk != null) {
-            ConsoleLogger.debug("LimboPlayer for `{0}` already exists on disk", name);
+            logger.debug("LimboPlayer for `{0}` already exists on disk", name);
         }
 
         LimboPlayer existingLimbo = entries.remove(name);
         if (existingLimbo != null) {
             existingLimbo.clearTasks();
-            ConsoleLogger.debug("LimboPlayer for `{0}` already present in memory", name);
+            logger.debug("LimboPlayer for `{0}` already present in memory", name);
         }
 
         Location location = spawnLoader.getPlayerLocationOrSpawn(player);
@@ -86,7 +90,7 @@ public class LimboService {
      * @return the associated limbo player, or null if none available
      */
     public LimboPlayer getLimboPlayer(String name) {
-        return entries.get(name.toLowerCase());
+        return entries.get(name.toLowerCase(Locale.ROOT));
     }
 
     /**
@@ -96,7 +100,7 @@ public class LimboService {
      * @return true if present, false otherwise
      */
     public boolean hasLimboPlayer(String name) {
-        return entries.containsKey(name.toLowerCase());
+        return entries.containsKey(name.toLowerCase(Locale.ROOT));
     }
 
     /**
@@ -108,18 +112,18 @@ public class LimboService {
      * @param player the player whose data should be restored
      */
     public void restoreData(Player player) {
-        String lowerName = player.getName().toLowerCase();
+        String lowerName = player.getName().toLowerCase(Locale.ROOT);
         LimboPlayer limbo = entries.remove(lowerName);
 
         if (limbo == null) {
-            ConsoleLogger.debug("No LimboPlayer found for `{0}` - cannot restore", lowerName);
+            logger.debug("No LimboPlayer found for `{0}` - cannot restore", lowerName);
         } else {
             player.setOp(limbo.isOperator());
             settings.getProperty(RESTORE_ALLOW_FLIGHT).restoreAllowFlight(player, limbo);
             settings.getProperty(RESTORE_FLY_SPEED).restoreFlySpeed(player, limbo);
             settings.getProperty(RESTORE_WALK_SPEED).restoreWalkSpeed(player, limbo);
             limbo.clearTasks();
-            ConsoleLogger.debug("Restored LimboPlayer stats for `{0}`", lowerName);
+            logger.debug("Restored LimboPlayer stats for `{0}`", lowerName);
             persistence.removeLimboPlayer(player);
         }
         authGroupHandler.setGroup(player, limbo, AuthGroupType.LOGGED_IN);
@@ -175,9 +179,9 @@ public class LimboService {
      * @return Optional with the limbo player
      */
     private Optional<LimboPlayer> getLimboOrLogError(Player player, String context) {
-        LimboPlayer limbo = entries.get(player.getName().toLowerCase());
+        LimboPlayer limbo = entries.get(player.getName().toLowerCase(Locale.ROOT));
         if (limbo == null) {
-            ConsoleLogger.debug("No LimboPlayer found for `{0}`. Action: {1}", player.getName(), context);
+            logger.debug("No LimboPlayer found for `{0}`. Action: {1}", player.getName(), context);
         }
         return Optional.ofNullable(limbo);
     }

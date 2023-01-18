@@ -4,6 +4,7 @@ import fr.xephi.authme.ConsoleLogger;
 import fr.xephi.authme.command.ExecutableCommand;
 import fr.xephi.authme.data.auth.PlayerAuth;
 import fr.xephi.authme.datasource.DataSource;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.message.MessageKey;
 import fr.xephi.authme.security.PasswordSecurity;
 import fr.xephi.authme.security.crypts.HashedPassword;
@@ -16,11 +17,14 @@ import org.bukkit.entity.Player;
 
 import javax.inject.Inject;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Admin command to register a user.
  */
 public class RegisterAdminCommand implements ExecutableCommand {
+
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(RegisterAdminCommand.class);
 
     @Inject
     private PasswordSecurity passwordSecurity;
@@ -42,7 +46,7 @@ public class RegisterAdminCommand implements ExecutableCommand {
         // Get the player name and password
         final String playerName = arguments.get(0);
         final String playerPass = arguments.get(1);
-        final String playerNameLowerCase = playerName.toLowerCase();
+        final String playerNameLowerCase = playerName.toLowerCase(Locale.ROOT);
 
         // Command logic
         ValidationResult passwordValidation = validationService.validatePassword(playerPass, playerName);
@@ -70,7 +74,7 @@ public class RegisterAdminCommand implements ExecutableCommand {
             }
 
             commonService.send(sender, MessageKey.REGISTER_SUCCESS);
-            ConsoleLogger.info(sender.getName() + " registered " + playerName);
+            logger.info(sender.getName() + " registered " + playerName);
             final Player player = bukkitService.getPlayerExact(playerName);
             if (player != null) {
                 bukkitService.scheduleSyncTaskFromOptionallyAsyncTask(() ->

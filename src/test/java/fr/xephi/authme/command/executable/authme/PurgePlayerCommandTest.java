@@ -11,6 +11,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.util.Locale;
+
+import static fr.xephi.authme.service.BukkitServiceTestHelper.setBukkitServiceToRunTaskAsynchronously;
 import static fr.xephi.authme.service.BukkitServiceTestHelper.setBukkitServiceToRunTaskOptionallyAsync;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -18,7 +21,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.hamcrest.MockitoHamcrest.argThat;
 
 /**
@@ -45,14 +48,14 @@ public class PurgePlayerCommandTest {
         String name = "Bobby";
         given(dataSource.isAuthAvailable(name)).willReturn(true);
         CommandSender sender = mock(CommandSender.class);
-        setBukkitServiceToRunTaskOptionallyAsync(bukkitService);
+        setBukkitServiceToRunTaskAsynchronously(bukkitService);
 
         // when
         command.executeCommand(sender, singletonList(name));
 
         // then
         verify(sender).sendMessage(argThat(containsString("This player is still registered")));
-        verifyZeroInteractions(purgeExecutor);
+        verifyNoInteractions(purgeExecutor);
     }
 
     @Test
@@ -63,14 +66,14 @@ public class PurgePlayerCommandTest {
         OfflinePlayer player = mock(OfflinePlayer.class);
         given(bukkitService.getOfflinePlayer(name)).willReturn(player);
         CommandSender sender = mock(CommandSender.class);
-        setBukkitServiceToRunTaskOptionallyAsync(bukkitService);
+        setBukkitServiceToRunTaskAsynchronously(bukkitService);
 
         // when
         command.executeCommand(sender, singletonList(name));
 
         // then
         verify(dataSource).isAuthAvailable(name);
-        verify(purgeExecutor).executePurge(singletonList(player), singletonList(name.toLowerCase()));
+        verify(purgeExecutor).executePurge(singletonList(player), singletonList(name.toLowerCase(Locale.ROOT)));
     }
 
     @Test
@@ -80,12 +83,12 @@ public class PurgePlayerCommandTest {
         OfflinePlayer player = mock(OfflinePlayer.class);
         given(bukkitService.getOfflinePlayer(name)).willReturn(player);
         CommandSender sender = mock(CommandSender.class);
-        setBukkitServiceToRunTaskOptionallyAsync(bukkitService);
+        setBukkitServiceToRunTaskAsynchronously(bukkitService);
 
         // when
         command.executeCommand(sender, asList(name, "force"));
 
         // then
-        verify(purgeExecutor).executePurge(singletonList(player), singletonList(name.toLowerCase()));
+        verify(purgeExecutor).executePurge(singletonList(player), singletonList(name.toLowerCase(Locale.ROOT)));
     }
 }

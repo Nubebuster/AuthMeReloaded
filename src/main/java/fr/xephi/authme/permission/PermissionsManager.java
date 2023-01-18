@@ -2,8 +2,9 @@ package fr.xephi.authme.permission;
 
 import com.google.common.annotations.VisibleForTesting;
 import fr.xephi.authme.ConsoleLogger;
+import fr.xephi.authme.data.limbo.UserGroup;
 import fr.xephi.authme.initialization.Reloadable;
-import fr.xephi.authme.listener.JoiningPlayer;
+import fr.xephi.authme.output.ConsoleLoggerFactory;
 import fr.xephi.authme.permission.handlers.LuckPermsHandler;
 import fr.xephi.authme.permission.handlers.PermissionHandler;
 import fr.xephi.authme.permission.handlers.PermissionHandlerException;
@@ -40,6 +41,7 @@ import java.util.UUID;
  */
 public class PermissionsManager implements Reloadable {
 
+    private final ConsoleLogger logger = ConsoleLoggerFactory.get(PermissionsManager.class);
     private final Server server;
     private final PluginManager pluginManager;
     private final Settings settings;
@@ -78,11 +80,11 @@ public class PermissionsManager implements Reloadable {
                 if (handler != null) {
                     // Show a success message and return
                     this.handler = handler;
-                    ConsoleLogger.info("Hooked into " + PermissionsSystemType.VAULT.getDisplayName() + "!");
+                    logger.info("Hooked into " + PermissionsSystemType.VAULT.getDisplayName() + "!");
                     return;
                 }
             } catch (PermissionHandlerException e) {
-                ConsoleLogger.logException("Failed to create Vault hook (forced):", e);
+                logger.logException("Failed to create Vault hook (forced):", e);
             }
         } else {
             // Loop through all the available permissions system types
@@ -92,18 +94,18 @@ public class PermissionsManager implements Reloadable {
                     if (handler != null) {
                         // Show a success message and return
                         this.handler = handler;
-                        ConsoleLogger.info("Hooked into " + type.getDisplayName() + "!");
+                        logger.info("Hooked into " + type.getDisplayName() + "!");
                         return;
                     }
                 } catch (Exception ex) {
                     // An error occurred, show a warning message
-                    ConsoleLogger.logException("Error while hooking into " + type.getDisplayName(), ex);
+                    logger.logException("Error while hooking into " + type.getDisplayName(), ex);
                 }
             }
         }
 
         // No recognized permissions system found, show a message and return
-        ConsoleLogger.info("No supported permissions system found! Permissions are disabled!");
+        logger.info("No supported permissions system found! Permissions are disabled!");
     }
 
     /**
@@ -125,7 +127,7 @@ public class PermissionsManager implements Reloadable {
 
         // Make sure the plugin is enabled before hooking
         if (!plugin.isEnabled()) {
-            ConsoleLogger.info("Not hooking into " + type.getDisplayName() + " because it's disabled!");
+            logger.info("Not hooking into " + type.getDisplayName() + " because it's disabled!");
             return null;
         }
 
@@ -151,7 +153,7 @@ public class PermissionsManager implements Reloadable {
         this.handler = null;
 
         // Print a status message to the console
-        ConsoleLogger.info("Unhooked from Permissions!");
+        logger.info("Unhooked from Permissions!");
     }
 
     /**
@@ -174,7 +176,7 @@ public class PermissionsManager implements Reloadable {
     public void onPluginEnable(String pluginName) {
         // Check if any known permissions system is enabling
         if (PermissionsSystemType.isPermissionSystem(pluginName)) {
-            ConsoleLogger.info(pluginName + " plugin enabled, dynamically updating permissions hooks!");
+            logger.info(pluginName + " plugin enabled, dynamically updating permissions hooks!");
             setup();
         }
     }
@@ -187,7 +189,7 @@ public class PermissionsManager implements Reloadable {
     public void onPluginDisable(String pluginName) {
         // Check if any known permission system is being disabled
         if (PermissionsSystemType.isPermissionSystem(pluginName)) {
-            ConsoleLogger.info(pluginName + " plugin disabled, updating hooks!");
+            logger.info(pluginName + " plugin disabled, updating hooks!");
             setup();
         }
     }
@@ -223,18 +225,6 @@ public class PermissionsManager implements Reloadable {
 
         Player player = (Player) sender;
         return player.hasPermission(permissionNode.getNode());
-    }
-
-    /**
-     * Check if the given player has permission for the given permission node.
-     *
-     * @param joiningPlayer  The player to check
-     * @param permissionNode The permission node to verify
-     *
-     * @return true if the player has permission, false otherwise
-     */
-    public boolean hasPermission(JoiningPlayer joiningPlayer, PermissionNode permissionNode) {
-        return joiningPlayer.getPermissionLookupFunction().apply(this, permissionNode);
     }
 
     /**
@@ -296,7 +286,7 @@ public class PermissionsManager implements Reloadable {
      *
      * @return Permission groups, or an empty collection if this feature is not supported.
      */
-    public Collection<String> getGroups(OfflinePlayer player) {
+    public Collection<UserGroup> getGroups(OfflinePlayer player) {
         return isEnabled() ? handler.getGroups(player) : Collections.emptyList();
     }
 
@@ -307,7 +297,7 @@ public class PermissionsManager implements Reloadable {
      *
      * @return The name of the primary permission group. Or null.
      */
-    public String getPrimaryGroup(OfflinePlayer player) {
+    public UserGroup getPrimaryGroup(OfflinePlayer player) {
         return isEnabled() ? handler.getPrimaryGroup(player) : null;
     }
 
@@ -320,7 +310,7 @@ public class PermissionsManager implements Reloadable {
      * @return True if the player is in the specified group, false otherwise.
      *         False is also returned if groups aren't supported by the used permissions system.
      */
-    public boolean isInGroup(OfflinePlayer player, String groupName) {
+    public boolean isInGroup(OfflinePlayer player, UserGroup groupName) {
         return isEnabled() && handler.isInGroup(player, groupName);
     }
 
@@ -333,8 +323,8 @@ public class PermissionsManager implements Reloadable {
      * @return True if succeed, false otherwise.
      *         False is also returned if this feature isn't supported for the current permissions system.
      */
-    public boolean addGroup(OfflinePlayer player, String groupName) {
-        if (!isEnabled() || StringUtils.isEmpty(groupName)) {
+    public boolean addGroup(OfflinePlayer player, UserGroup groupName) {
+        if (!isEnabled() || StringUtils.isBlank(groupName.getGroupName())) {
             return false;
         }
         return handler.addToGroup(player, groupName);
@@ -349,7 +339,7 @@ public class PermissionsManager implements Reloadable {
      * @return True if at least one group was added, false otherwise.
      *         False is also returned if this feature isn't supported for the current permissions system.
      */
-    public boolean addGroups(OfflinePlayer player, Collection<String> groupNames) {
+    public boolean addGroups(OfflinePlayer player, Collection<UserGroup> groupNames) {
         // If no permissions system is used, return false
         if (!isEnabled()) {
             return false;
@@ -357,9 +347,9 @@ public class PermissionsManager implements Reloadable {
 
         // Add each group to the user
         boolean result = false;
-        for (String groupName : groupNames) {
-            if (!groupName.isEmpty()) {
-                result |= handler.addToGroup(player, groupName);
+        for (UserGroup group : groupNames) {
+            if (!group.getGroupName().isEmpty()) {
+                result |= handler.addToGroup(player, group);
             }
         }
 
@@ -371,13 +361,13 @@ public class PermissionsManager implements Reloadable {
      * Remove the permission group of a player, if supported.
      *
      * @param player    The player
-     * @param groupName The name of the group.
+     * @param group The name of the group.
      *
      * @return True if succeed, false otherwise.
      *         False is also returned if this feature isn't supported for the current permissions system.
      */
-    public boolean removeGroup(OfflinePlayer player, String groupName) {
-        return isEnabled() && handler.removeFromGroup(player, groupName);
+    public boolean removeGroup(OfflinePlayer player, UserGroup group) {
+        return isEnabled() && handler.removeFromGroup(player, group);
     }
 
     /**
@@ -389,7 +379,7 @@ public class PermissionsManager implements Reloadable {
      * @return True if at least one group was removed, false otherwise.
      *         False is also returned if this feature isn't supported for the current permissions system.
      */
-    public boolean removeGroups(OfflinePlayer player, Collection<String> groupNames) {
+    public boolean removeGroups(OfflinePlayer player, Collection<UserGroup> groupNames) {
         // If no permissions system is used, return false
         if (!isEnabled()) {
             return false;
@@ -397,9 +387,9 @@ public class PermissionsManager implements Reloadable {
 
         // Add each group to the user
         boolean result = false;
-        for (String groupName : groupNames) {
-            if (!groupName.isEmpty()) {
-                result |= handler.removeFromGroup(player, groupName);
+        for (UserGroup group : groupNames) {
+            if (!group.getGroupName().isEmpty()) {
+                result |= handler.removeFromGroup(player, group);
             }
         }
 
@@ -412,13 +402,13 @@ public class PermissionsManager implements Reloadable {
      * This clears the current groups of the player.
      *
      * @param player    The player
-     * @param groupName The name of the group.
+     * @param group The name of the group.
      *
      * @return True if succeed, false otherwise.
      *         False is also returned if this feature isn't supported for the current permissions system.
      */
-    public boolean setGroup(OfflinePlayer player, String groupName) {
-        return isEnabled() && handler.setGroup(player, groupName);
+    public boolean setGroup(OfflinePlayer player, UserGroup group) {
+        return isEnabled() && handler.setGroup(player, group);
     }
 
     /**
@@ -438,10 +428,10 @@ public class PermissionsManager implements Reloadable {
         }
 
         // Get a list of current groups
-        Collection<String> groupNames = getGroups(player);
+        Collection<UserGroup> groups = getGroups(player);
 
         // Remove each group
-        return removeGroups(player, groupNames);
+        return removeGroups(player, groups);
     }
 
     /**
@@ -454,7 +444,7 @@ public class PermissionsManager implements Reloadable {
         try {
             loadUserData(offlinePlayer.getUniqueId());
         } catch (PermissionLoadUserException e) {
-            ConsoleLogger.logException("Unable to load the permission data of user " + offlinePlayer.getName(), e);
+            logger.logException("Unable to load the permission data of user " + offlinePlayer.getName(), e);
             return false;
         }
         return true;
